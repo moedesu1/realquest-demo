@@ -13,6 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -71,19 +73,19 @@
     <!-- 3-step explanation -->
     <div class="opening-steps">
       <div class="step-item">
-        <div class="step-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="2"/><path d="M13 3h4a2 2 0 0 1 2 2v4"/><path d="m15 15-2-2"/><path d="M21 21l-4.3-4.3"/></svg></div>
+        <div class="step-icon"><i class="ph-bold ph-magnifying-glass" style="font-size:1.6rem"></i></div>
         <div class="step-num">STEP 1</div>
         <div class="step-label">クエストを選ぶ</div>
       </div>
       <div class="step-arrow">→</div>
       <div class="step-item">
-        <div class="step-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+        <div class="step-icon"><i class="ph-bold ph-package" style="font-size:1.6rem"></i></div>
         <div class="step-num">STEP 2</div>
         <div class="step-label">物語が届く</div>
       </div>
       <div class="step-arrow">→</div>
       <div class="step-item">
-        <div class="step-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></div>
+        <div class="step-icon"><i class="ph-bold ph-flag-pennant" style="font-size:1.6rem"></i></div>
         <div class="step-num">STEP 3</div>
         <div class="step-label">冒険が始まる</div>
       </div>
@@ -92,11 +94,11 @@
     <!-- Login buttons — two roles -->
     <div class="login-buttons">
       <button class="btn-login btn-adventurer" onclick="loginAsAdventurer()">
-        <span class="btn-login-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88"/></svg></span>
+        <span class="btn-login-icon"><i class="ph ph-compass" style="font-size:1.1rem"></i></span>
         <span>冒険者としてログイン</span>
       </button>
       <button class="btn-login btn-creator" onclick="loginAsCreator()">
-        <span class="btn-login-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
+        <span class="btn-login-icon"><i class="ph ph-pen-nib" style="font-size:1.1rem"></i></span>
         <span>創造者としてログイン</span>
       </button>
     </div>
@@ -118,7 +120,7 @@
         BGM
       </button>
       <button class="header-user" onclick="navigateTo('mypage')">
-        <div class="header-avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+        <div class="header-avatar"><i class="ph ph-user" style="font-size:0.85rem"></i></div>
         <span id="header-username">冒険者</span>
         <span class="header-title-badge" id="header-title">見習い</span>
       </button>
@@ -153,7 +155,7 @@
   <div class="purpose-search">
     <div class="purpose-search-inner">
       <div class="purpose-heading">
-        <span class="purpose-heading-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88"/></svg></span>
+        <span class="purpose-heading-icon"><i class="ph ph-compass" style="font-size:1.2rem"></i></span>
         <span class="purpose-heading-text"><strong>目的</strong>から探す</span>
       </div>
       <div class="purpose-cards">
@@ -199,7 +201,7 @@
   <div class="search-filter-area">
     <div class="search-row">
       <div class="search-input-wrap">
-        <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+        <span class="search-icon"><i class="ph ph-magnifying-glass" style="font-size:0.95rem"></i></span>
         <input type="text" class="search-input" id="search-input" placeholder="クエスト名・ジャンルで検索..." oninput="handleSearch()">
       </div>
       <button class="search-btn" onclick="handleSearch()">検索</button>
@@ -457,7 +459,7 @@
     </div>
   </header>
   <div class="creator-placeholder">
-    <div class="creator-placeholder-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></div>
+    <div class="creator-placeholder-icon"><i class="ph ph-pen-nib" style="font-size:3rem"></i></div>
     <div class="creator-placeholder-title">創造者ギルド — 準備中</div>
     <div class="creator-placeholder-text">
       クエストを生み出す創造者のための機能を整備しています。<br>
