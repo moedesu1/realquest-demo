@@ -44,8 +44,10 @@
   --radius-lg: 6px;
   --sheikah-cyan: #5ba4a0;
   --shrine-amber: #d4a04a;
-  --grid-line: rgba(138,122,96,0.06);
-  --grid-line-major: rgba(138,122,96,0.12);
+  --grid-line: rgba(130,110,70,0.13);
+  --grid-line-major: rgba(110,90,50,0.22);
+  --parchment-stain: rgba(150,120,70,0.25);
+  --vignette-dark: rgba(60,40,15,0.45);
 }
 
 /* --- RESET --- */
@@ -119,60 +121,90 @@ input, select { font-family: inherit; }
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   padding: 3rem 1rem;
-  background: var(--bg-abyss);
+  background: #d8ccae;
   z-index: 10;
 }
 
-/* Topographic contour line pattern */
+/* Rhumb / navigation lines — radiating from compass point */
 .topo-lines {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  opacity: 0.04;
+  opacity: 1;
   background:
-    repeating-radial-gradient(ellipse at 35% 45%, transparent 0px, transparent 38px, var(--border-glow) 39px, transparent 40px),
-    repeating-radial-gradient(ellipse at 65% 55%, transparent 0px, transparent 52px, var(--border-glow) 53px, transparent 54px),
-    repeating-radial-gradient(ellipse at 50% 30%, transparent 0px, transparent 70px, var(--border-glow) 71px, transparent 72px);
+    linear-gradient(15deg, transparent 49.75%, rgba(110,90,50,0.07) 49.75%, rgba(110,90,50,0.07) 50.25%, transparent 50.25%),
+    linear-gradient(30deg, transparent 49.75%, rgba(110,90,50,0.06) 49.75%, rgba(110,90,50,0.06) 50.25%, transparent 50.25%),
+    linear-gradient(45deg, transparent 49.8%, rgba(110,90,50,0.05) 49.8%, rgba(110,90,50,0.05) 50.2%, transparent 50.2%),
+    linear-gradient(60deg, transparent 49.75%, rgba(110,90,50,0.06) 49.75%, rgba(110,90,50,0.06) 50.25%, transparent 50.25%),
+    linear-gradient(75deg, transparent 49.75%, rgba(110,90,50,0.07) 49.75%, rgba(110,90,50,0.07) 50.25%, transparent 50.25%),
+    linear-gradient(-15deg, transparent 49.75%, rgba(110,90,50,0.07) 49.75%, rgba(110,90,50,0.07) 50.25%, transparent 50.25%),
+    linear-gradient(-30deg, transparent 49.75%, rgba(110,90,50,0.06) 49.75%, rgba(110,90,50,0.06) 50.25%, transparent 50.25%),
+    linear-gradient(-45deg, transparent 49.8%, rgba(110,90,50,0.05) 49.8%, rgba(110,90,50,0.05) 50.2%, transparent 50.2%),
+    linear-gradient(-60deg, transparent 49.75%, rgba(110,90,50,0.06) 49.75%, rgba(110,90,50,0.06) 50.25%, transparent 50.25%),
+    linear-gradient(-75deg, transparent 49.75%, rgba(110,90,50,0.07) 49.75%, rgba(110,90,50,0.07) 50.25%, transparent 50.25%);
 }
 
+/* Parchment texture — CSS-only ancient map background */
 .opening-bg {
-  position: fixed; inset: -5%; width: 110%; height: 110%;
-  background: url('../images/bg-opening-new.webp') center/cover no-repeat;
+  position: fixed; inset: 0; width: 100%; height: 100%;
   z-index: 0; opacity: 0;
-  animation: bgFadeIn 3s ease forwards, kenBurns 30s ease-in-out 3s infinite alternate;
+  animation: parchmentFadeIn 2s ease forwards;
+  background:
+    /* Aging stain patches */
+    radial-gradient(ellipse at 12% 88%, var(--parchment-stain) 0%, transparent 50%),
+    radial-gradient(ellipse at 88% 8%, rgba(140,110,60,0.22) 0%, transparent 42%),
+    radial-gradient(ellipse at 50% 50%, rgba(160,135,90,0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 22% 22%, rgba(145,115,65,0.18) 0%, transparent 38%),
+    radial-gradient(ellipse at 78% 78%, rgba(135,108,60,0.2) 0%, transparent 46%),
+    radial-gradient(ellipse at 65% 15%, rgba(155,125,75,0.14) 0%, transparent 32%),
+    radial-gradient(ellipse at 35% 70%, rgba(148,118,68,0.16) 0%, transparent 40%),
+    radial-gradient(ellipse at 8% 40%, rgba(140,112,62,0.12) 0%, transparent 30%),
+    radial-gradient(ellipse at 92% 55%, rgba(150,122,72,0.14) 0%, transparent 35%),
+    /* Base parchment gradient */
+    linear-gradient(160deg, #e2d6ba 0%, #dac8a4 20%, #ddd0b4 40%, #d5c2a0 60%, #e0d4b6 80%, #d8ccae 100%);
 }
-@keyframes bgFadeIn { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
-@keyframes kenBurns { 0% { transform: scale(1); } 100% { transform: scale(1.05) translate(-1%,-0.5%); } }
+@keyframes parchmentFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* SVG noise overlay for paper grain texture */
+.parchment-noise {
+  position: fixed; inset: 0; z-index: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0; animation: parchmentFadeIn 2s 0.3s ease forwards;
+}
+
+/* Vignette — dark burned edges like aged parchment */
 #page-opening::before {
   content: ''; position: fixed; inset: 0;
-  background: radial-gradient(ellipse at center, rgba(242,237,228,0.3), rgba(242,237,228,0.15) 40%, rgba(242,237,228,0.55));
+  background: radial-gradient(ellipse at center, transparent 25%, rgba(100,75,35,0.12) 55%, rgba(70,48,18,0.35) 80%, var(--vignette-dark) 100%);
   pointer-events: none; z-index: 1;
 }
 
 .opening-content {
   position: relative; z-index: 2; text-align: center;
   padding: clamp(3rem,6vw,4.5rem) clamp(2rem,5vw,3.5rem);
-  background: transparent;
+  background: radial-gradient(ellipse at center, rgba(225,215,190,0.55) 0%, rgba(225,215,190,0.2) 55%, transparent 75%);
   border: none;
   border-radius: 0;
   box-shadow: none;
   width: 90%; max-width: 500px; margin: 0 auto;
 }
 
-/* Sheikah-style map grid overlay */
+/* Cartographic grid — latitude/longitude lines */
 .map-grid {
   position: fixed; inset: 0; z-index: 1; pointer-events: none;
   background:
-    repeating-linear-gradient(0deg, var(--grid-line) 0px, var(--grid-line) 1px, transparent 1px, transparent 60px),
-    repeating-linear-gradient(90deg, var(--grid-line) 0px, var(--grid-line) 1px, transparent 1px, transparent 60px),
-    repeating-linear-gradient(0deg, var(--grid-line-major) 0px, var(--grid-line-major) 1px, transparent 1px, transparent 300px),
-    repeating-linear-gradient(90deg, var(--grid-line-major) 0px, var(--grid-line-major) 1px, transparent 1px, transparent 300px);
+    /* Fine grid */
+    repeating-linear-gradient(0deg, var(--grid-line) 0px, var(--grid-line) 1px, transparent 1px, transparent 80px),
+    repeating-linear-gradient(90deg, var(--grid-line) 0px, var(--grid-line) 1px, transparent 1px, transparent 80px),
+    /* Major grid lines */
+    repeating-linear-gradient(0deg, var(--grid-line-major) 0px, var(--grid-line-major) 1px, transparent 1px, transparent 400px),
+    repeating-linear-gradient(90deg, var(--grid-line-major) 0px, var(--grid-line-major) 1px, transparent 1px, transparent 400px);
 }
 
 /* Corner coordinate labels */
 .map-coord {
   position: fixed; z-index: 2; pointer-events: none;
   font-family: var(--heading-font); font-size: 0.5rem;
-  color: var(--ruin); letter-spacing: 0.12em; opacity: 0.5;
+  color: rgba(110,90,50,0.7); letter-spacing: 0.12em; opacity: 0.6;
 }
 .map-coord.top-left { top: 1.5rem; left: 1.5rem; }
 .map-coord.top-right { top: 1.5rem; right: 1.5rem; text-align: right; }
@@ -216,9 +248,9 @@ input, select { font-family: inherit; }
   100% { transform: scale(1.3); opacity: 0; }
 }
 
-/* Compass rose — bottom-right fixed */
+/* Compass rose — bottom-left fixed (like reference map) */
 .logo-mark {
-  position: fixed; bottom: 2rem; right: 2rem; z-index: 2;
+  position: fixed; bottom: 2rem; left: 2rem; z-index: 2;
   margin: 0; opacity: 0;
   animation: fadeUp 1.2s var(--ease-out-expo) 0.8s forwards;
 }
@@ -1508,6 +1540,32 @@ input, select { font-family: inherit; }
 .reveal.visible { opacity: 1; transform: translateY(0); }
 
 /* ============================================================
+   ANCIENT MAP — BORDER FRAME
+   ============================================================ */
+.map-border-frame {
+  position: fixed; inset: 14px; z-index: 2; pointer-events: none;
+  border: 1px solid rgba(130,110,70,0.3);
+  opacity: 0; animation: parchmentFadeIn 2s 0.5s ease forwards;
+}
+/* Tick marks on border (degree markers) */
+.map-border-frame::before {
+  content: ''; position: absolute; inset: -1px;
+  background:
+    /* Top ticks */
+    repeating-linear-gradient(90deg, transparent 0px, transparent 79px, rgba(110,90,50,0.2) 79px, rgba(110,90,50,0.2) 81px, transparent 81px, transparent 160px)
+    0 0 / 100% 6px no-repeat,
+    /* Bottom ticks */
+    repeating-linear-gradient(90deg, transparent 0px, transparent 79px, rgba(110,90,50,0.2) 79px, rgba(110,90,50,0.2) 81px, transparent 81px, transparent 160px)
+    0 100% / 100% 6px no-repeat,
+    /* Left ticks */
+    repeating-linear-gradient(0deg, transparent 0px, transparent 79px, rgba(110,90,50,0.2) 79px, rgba(110,90,50,0.2) 81px, transparent 81px, transparent 160px)
+    0 0 / 6px 100% no-repeat,
+    /* Right ticks */
+    repeating-linear-gradient(0deg, transparent 0px, transparent 79px, rgba(110,90,50,0.2) 79px, rgba(110,90,50,0.2) 81px, transparent 81px, transparent 160px)
+    100% 0 / 6px 100% no-repeat;
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 768px) {
@@ -1536,7 +1594,8 @@ input, select { font-family: inherit; }
 
 @media (max-width: 768px) {
   .map-coord { display: none; }
-  .logo-mark { bottom: 1rem; right: 1rem; }
+  .map-border-frame { inset: 8px; }
+  .logo-mark { bottom: 1rem; left: 1rem; }
   .logo-mark svg { width: 56px; height: 56px; }
 }
 
@@ -1550,6 +1609,7 @@ input, select { font-family: inherit; }
   .footer-nav-col { align-items: center; text-align: center; }
 
   .discovery-marker { width: 40px; height: 40px; }
-  .logo-mark { bottom: 0.8rem; right: 0.8rem; }
+  .logo-mark { bottom: 0.8rem; left: 0.8rem; }
   .logo-mark svg { width: 44px; height: 44px; }
+  .map-border-frame { inset: 6px; }
 }
