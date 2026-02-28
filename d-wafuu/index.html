@@ -67,55 +67,46 @@
       </svg>
     </div>
 
-    <div class="logo-coord">35°41'N — 139°41'E</div>
+    <div class="logo-sub">— ENTER THE REAL QUEST —</div>
     <div class="logo-main">リアクエ</div>
     <div class="logo-main-en">REAL QUEST</div>
 
-    <div class="divider-map">
-      <span class="line"></span>
-      <span class="diamond"></span>
-      <span class="line"></span>
+    <div class="divider-sword">
+      <span class="line"></span><span class="diamond"></span><span class="line"></span>
     </div>
 
-    <div class="logo-tagline">日常が、<span>冒険の地図</span>になる</div>
+    <div class="logo-tagline">日常が、<span>クエスト</span>になる</div>
 
-    <!-- Discovery flow: 発見 → 記録 → 起動 -->
+    <!-- 3-step explanation -->
     <div class="opening-steps">
       <div class="step-item">
-        <div class="step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
-        <div class="step-num">I</div>
-        <div class="step-label">発見する</div>
-        <div class="step-sub">DISCOVER</div>
+        <div class="step-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="2"/><path d="M13 3h4a2 2 0 0 1 2 2v4"/><path d="m15 15-2-2"/><path d="M21 21l-4.3-4.3"/></svg></div>
+        <div class="step-num">STEP 1</div>
+        <div class="step-label">クエストを選ぶ</div>
       </div>
-      <div class="step-arrow">
-        <svg width="20" height="12" viewBox="0 0 20 12" fill="none" stroke="#8a7a60" stroke-width="1" opacity="0.4"><path d="M0 6h18M14 1l5 5-5 5"/></svg>
-      </div>
+      <div class="step-arrow">→</div>
       <div class="step-item">
-        <div class="step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></div>
-        <div class="step-num">II</div>
-        <div class="step-label">記録する</div>
-        <div class="step-sub">RECORD</div>
+        <div class="step-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+        <div class="step-num">STEP 2</div>
+        <div class="step-label">物語が届く</div>
       </div>
-      <div class="step-arrow">
-        <svg width="20" height="12" viewBox="0 0 20 12" fill="none" stroke="#8a7a60" stroke-width="1" opacity="0.4"><path d="M0 6h18M14 1l5 5-5 5"/></svg>
-      </div>
+      <div class="step-arrow">→</div>
       <div class="step-item">
-        <div class="step-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-        <div class="step-num">III</div>
-        <div class="step-label">起動する</div>
-        <div class="step-sub">ACTIVATE</div>
+        <div class="step-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></div>
+        <div class="step-num">STEP 3</div>
+        <div class="step-label">冒険が始まる</div>
       </div>
     </div>
 
-    <!-- Login buttons -->
+    <!-- Login buttons — two roles -->
     <div class="login-buttons">
       <button class="btn-login btn-adventurer" onclick="loginAsAdventurer()">
         <span class="btn-login-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88"/></svg></span>
-        <span>探索を開始する</span>
+        <span>冒険者としてログイン</span>
       </button>
       <button class="btn-login btn-creator" onclick="loginAsCreator()">
         <span class="btn-login-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
-        <span>地図を創る</span>
+        <span>創造者としてログイン</span>
       </button>
     </div>
   </div>
@@ -126,7 +117,7 @@
      ============================================================ -->
 <div class="page" id="page-quest-board">
   <header class="site-header">
-    <div class="header-logo" onclick="navigateTo('opening')">⊕ リアクエ</div>
+    <div class="header-logo" onclick="navigateTo('opening')">◆ リアクエ</div>
     <div class="header-nav">
       <button class="header-nav-link active" onclick="navigateTo('quest-board')">クエスト</button>
       <button class="header-nav-link" onclick="navigateTo('rankings')">ランキング</button>
@@ -148,9 +139,9 @@
 
   <!-- Hero Banner -->
   <div class="board-hero">
-    <div class="board-hero-label">— FIELD MAP —</div>
-    <div class="board-hero-title">探索地図</div>
-    <div class="board-hero-sub">未踏の地に眠る物語を、発見し、記録し、起動する</div>
+    <div class="board-hero-label">— ADVENTURERS GUILD —</div>
+    <div class="board-hero-title">冒険者ギルド掲示板</div>
+    <div class="board-hero-sub">物語アイテムが届き、現実がクエストフィールドになる</div>
     <div class="board-hero-stats">
       <div class="hero-stat">
         <div class="hero-stat-num" id="stat-quests">6</div>
@@ -172,7 +163,7 @@
     <div class="purpose-search-inner">
       <div class="purpose-heading">
         <span class="purpose-heading-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88"/></svg></span>
-        <span class="purpose-heading-text"><strong>地形</strong>から探す</span>
+        <span class="purpose-heading-text"><strong>目的</strong>から探す</span>
       </div>
       <div class="purpose-cards">
         <button class="purpose-card" onclick="setPurposeFilter('puzzle')">
@@ -250,7 +241,7 @@
   </div>
 
   <div class="section-divider">
-    <span class="dv-line"></span><span class="dv-icon">⊕</span><span class="dv-line"></span>
+    <span class="dv-line"></span><span class="dv-icon">◆</span><span class="dv-line"></span>
   </div>
 
   <!-- Footer (HV-style) -->
@@ -259,8 +250,8 @@
       <div class="footer-main-inner">
         <!-- Brand column -->
         <div class="footer-brand">
-          <div class="footer-brand-logo">⊕ リアクエ<br><span>REAL QUEST</span></div>
-          <div class="footer-brand-desc">未踏の地に眠る物語を、<br>発見し、記録し、起動する</div>
+          <div class="footer-brand-logo">◆ リアクエ<br><span>REAL QUEST</span></div>
+          <div class="footer-brand-desc">物語アイテムが届き、<br>現実がクエストフィールドになる</div>
           <div class="footer-social">
             <a href="#" title="X (Twitter)" class="footer-social-link">𝕏</a>
             <a href="#" title="Instagram" class="footer-social-link">Ig</a>
@@ -326,7 +317,7 @@
      ============================================================ -->
 <div class="page" id="page-detail">
   <header class="site-header">
-    <div class="header-logo" onclick="navigateTo('opening')">⊕ リアクエ</div>
+    <div class="header-logo" onclick="navigateTo('opening')">◆ リアクエ</div>
     <div class="header-nav">
       <button class="header-nav-link" onclick="navigateTo('quest-board')">クエスト</button>
       <button class="header-nav-link" onclick="navigateTo('rankings')">ランキング</button>
@@ -347,7 +338,7 @@
 
   <footer class="site-footer-mini">
     <div class="footer-mini-inner">
-      <div class="footer-logo">⊕ REAL QUEST ⊕</div>
+      <div class="footer-logo">◆ REAL QUEST ◆</div>
       <div class="footer-mini-links">
         <a onclick="navigateTo('quest-board')">クエスト一覧</a>
         <a onclick="navigateTo('rankings')">ランキング</a>
@@ -369,7 +360,7 @@
      ============================================================ -->
 <div class="page" id="page-rankings">
   <header class="site-header">
-    <div class="header-logo" onclick="navigateTo('opening')">⊕ リアクエ</div>
+    <div class="header-logo" onclick="navigateTo('opening')">◆ リアクエ</div>
     <div class="header-nav">
       <button class="header-nav-link" onclick="navigateTo('quest-board')">クエスト</button>
       <button class="header-nav-link active" onclick="navigateTo('rankings')">ランキング</button>
@@ -386,8 +377,8 @@
 
   <div class="ranking-page-content">
     <div class="ranking-hero">
-      <div class="ranking-hero-title">探索記録</div>
-      <div class="ranking-hero-sub">探索者たちの足跡と、発見された地の記録</div>
+      <div class="ranking-hero-title">ギルドランキング</div>
+      <div class="ranking-hero-sub">勇者たちの戦績と、人気クエストの記録</div>
     </div>
 
     <div class="ranking-tabs">
@@ -404,7 +395,7 @@
 
   <footer class="site-footer-mini">
     <div class="footer-mini-inner">
-      <div class="footer-logo">⊕ REAL QUEST ⊕</div>
+      <div class="footer-logo">◆ REAL QUEST ◆</div>
       <div class="footer-mini-links">
         <a onclick="navigateTo('quest-board')">クエスト一覧</a>
         <a onclick="navigateTo('rankings')">ランキング</a>
@@ -426,7 +417,7 @@
      ============================================================ -->
 <div class="page" id="page-mypage">
   <header class="site-header">
-    <div class="header-logo" onclick="navigateTo('opening')">⊕ リアクエ</div>
+    <div class="header-logo" onclick="navigateTo('opening')">◆ リアクエ</div>
     <div class="header-nav">
       <button class="header-nav-link" onclick="navigateTo('quest-board')">クエスト</button>
       <button class="header-nav-link" onclick="navigateTo('rankings')">ランキング</button>
@@ -447,7 +438,7 @@
 
   <footer class="site-footer-mini">
     <div class="footer-mini-inner">
-      <div class="footer-logo">⊕ REAL QUEST ⊕</div>
+      <div class="footer-logo">◆ REAL QUEST ◆</div>
       <div class="footer-mini-links">
         <a onclick="navigateTo('quest-board')">クエスト一覧</a>
         <a onclick="navigateTo('rankings')">ランキング</a>
@@ -469,14 +460,14 @@
      ============================================================ -->
 <div class="page" id="page-creator">
   <header class="site-header">
-    <div class="header-logo" onclick="navigateTo('opening')">⊕ リアクエ</div>
+    <div class="header-logo" onclick="navigateTo('opening')">◆ リアクエ</div>
     <div class="header-nav">
       <button class="header-nav-link" onclick="navigateTo('quest-board')">冒険者側へ</button>
     </div>
   </header>
   <div class="creator-placeholder">
     <div class="creator-placeholder-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></div>
-    <div class="creator-placeholder-title">地図製作者ギルド — 準備中</div>
+    <div class="creator-placeholder-title">創造者ギルド — 準備中</div>
     <div class="creator-placeholder-text">
       クエストを生み出す創造者のための機能を整備しています。<br>
       作品登録・販売、運営からの発注受注など、近日公開予定です。
