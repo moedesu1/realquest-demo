@@ -689,7 +689,7 @@ function acceptQuest(questId) {
   if (newTitle) userState.title = newTitle.name;
   updateHeaderUser();
 
-  // Animate
+  // 3-phase animation: Discovery → Recording → Activation
   const area = document.getElementById(`accept-area-${questId}`);
   const btn = area.querySelector('.btn-accept');
   if (btn) {
@@ -697,7 +697,12 @@ function acceptQuest(questId) {
     btn.style.pointerEvents = 'none';
   }
 
+  // Phase 2: Recording — inscription scan
+  area.classList.add('recording');
+
   setTimeout(() => {
+    // Phase 3: Activation — shrine-amber flash
+    area.classList.remove('recording');
     area.classList.add('accepted');
     if (btn) btn.remove();
   }, 800);
@@ -1058,7 +1063,7 @@ function playStartSFX() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   let particles = [];
-  const count = 40;
+  const count = 25;
 
   function resize() {
     canvas.width = window.innerWidth;
@@ -1083,7 +1088,7 @@ function playStartSFX() {
     particles.forEach(p => {
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(219,112,147,${p.a})`;
+      ctx.fillStyle = `rgba(91,164,160,${p.a})`;
       ctx.fill();
       p.x += p.vx;
       p.y += p.vy;
