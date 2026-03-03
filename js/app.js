@@ -291,6 +291,7 @@ function navigateTo(pageId, options = {}) {
       currentPage = pageId;
       if (options.onShow) options.onShow();
       // Page-specific init
+      if (pageId === 'quest-board') renderHomeBoard();
       if (pageId === 'rankings') renderRanking('popular');
       if (pageId === 'mypage') renderMyPage();
       if (['terms', 'privacy', 'tokushoho'].includes(pageId)) renderLegalPage(pageId);
@@ -300,6 +301,7 @@ function navigateTo(pageId, options = {}) {
     showPage(targetEl);
     currentPage = pageId;
     if (options.onShow) options.onShow();
+    if (pageId === 'quest-board') renderHomeBoard();
     if (pageId === 'rankings') renderRanking('popular');
     if (pageId === 'mypage') renderMyPage();
     if (['terms', 'privacy', 'tokushoho'].includes(pageId)) renderLegalPage(pageId);
@@ -473,7 +475,7 @@ if (supabase) {
         navigateTo('quest-board', {
           transitionText: 'ギルド掲示板を開いています...',
           delay: 1200,
-          onShow: () => { renderQuestCards(quests); updateHeaderUser(); }
+          onShow: () => { renderHomeBoard(); updateHeaderUser(); }
         });
       }
     }
@@ -492,7 +494,7 @@ function loginAsAdventurer() {
     transitionText: 'ギルド掲示板を開いています...',
     delay: 1200,
     onShow: () => {
-      renderQuestCards(quests);
+      renderHomeBoard();
       updateHeaderUser();
     }
   });
@@ -510,15 +512,149 @@ function updateHeaderUser() {
   document.querySelectorAll('#header-title').forEach(el => el.textContent = userState.title);
 }
 
-/* ── QUEST CARD RENDERING ── */
+/* ── HOME QUEST CARD HTML HELPER ── */
+function buildHomeQuestCardHtml(q) {
+  const stars = Array.from({ length: 5 }, (_, i) =>
+    `<span class="star ${i < q.difficulty ? 'filled' : ''}">★</span>`
+  ).join('');
+  const formatLabel = { home: '自宅完結', outdoor: '現地型', hybrid: 'ハイブリッド' }[q.format] || q.format;
+
+  return `
+    <div class="home-quest-card" onclick="openQuestDetail(${q.id})">
+      ${q.isNew ? '<div class="card-badge">NEW</div>' : ''}
+      <div class="card-image">
+        ${q.image ? `<img src="${q.image}" alt="${q.title}" loading="lazy">` : `<div style="width:100%;height:100%;background:var(--bg-panel)"></div>`}
+      </div>
+      <div class="card-body">
+        <div class="card-tags">
+          <span class="card-tag genre">${q.genre}</span>
+          <span class="card-tag format">${formatLabel}</span>
+          ${q.subGenre ? `<span class="card-tag">${q.subGenre}</span>` : ''}
+        </div>
+        <div class="card-title">${q.title}</div>
+        <div class="card-meta">
+          <div class="card-meta-item"><div class="card-difficulty">${stars}</div></div>
+          <div class="card-meta-item"><span>${q.players}</span></div>
+          <div class="card-meta-item"><span>${q.estimatedTime}</span></div>
+          <div class="card-meta-item"><span style="color:var(--star-fill)">★</span><span style="color:var(--neon-gold)">${q.reviewAvg}</span><span>(${q.reviewCount})</span></div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="card-price">
+          <span class="currency">¥</span>${q.price.toLocaleString()}
+          <span class="tax">(税込)</span>
+        </div>
+        <div class="card-cta">詳細を見る →</div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── RENDER HOME BOARD (master function) ── */
+function renderHomeBoard() {
+  renderNewQuests();
+  renderPopularQuests();
+  renderHomeRanking();
+  renderLatestReviews();
+}
+
+/* ── RENDER NEW QUESTS (isNew=true, max 3) ── */
+function renderNewQuests() {
+  const row = document.getElementById('new-quests-row');
+  if (!row) return;
+  const newQuests = quests.filter(q => q.isNew).slice(0, 3);
+  if (!newQuests.length) {
+    // Fallback: show latest 3 by id
+    const latest = [...quests].sort((a, b) => b.id - a.id).slice(0, 3);
+    row.innerHTML = latest.map(buildHomeQuestCardHtml).join('');
+  } else {
+    row.innerHTML = newQuests.map(buildHomeQuestCardHtml).join('');
+  }
+}
+
+/* ── RENDER POPULAR QUESTS (top 3 by salesCount) ── */
+function renderPopularQuests() {
+  const row = document.getElementById('popular-quests-row');
+  if (!row) return;
+  const popular = [...quests].sort((a, b) => b.salesCount - a.salesCount).slice(0, 3);
+  row.innerHTML = popular.map(buildHomeQuestCardHtml).join('');
+}
+
+/* ── RENDER HOME RANKING (Top 5 adventurers) ── */
+function renderHomeRanking() {
+  const list = document.getElementById('home-ranking-list');
+  if (!list) return;
+  const titleColors = {
+    'マスター': '#d4a340',
+    'エキスパート': '#c0c0c0',
+    'ベテラン': '#cd7f32',
+    'チャレンジャー': '#6ea8fe',
+    'ルーキー': '#8a7a60',
+  };
+  const adventurers = [
+    { name: '冒険者タロウ', img: 'images/quest-1-alchemy.webp', title: 'マスター', quests: 42 },
+    { name: '迷宮のハナコ', img: 'images/quest-2-library.webp', title: 'エキスパート', quests: 35 },
+    { name: '探索王ケンジ', img: 'images/quest-3-ruins.webp', title: 'ベテラン', quests: 28 },
+    { name: '謎解きユキ', img: 'images/quest-4-clocktower.webp', title: 'チャレンジャー', quests: 18 },
+    { name: '宝探しリョウ', img: 'images/quest-5-deepsea.webp', title: 'チャレンジャー', quests: 12 },
+  ];
+  list.innerHTML = adventurers.map((a, i) => `
+    <div class="home-ranking-item ${i < 3 ? 'top-3' : ''}">
+      <div class="home-ranking-pos">${i + 1}</div>
+      <div class="home-ranking-thumb" style="border-radius:50%;overflow:hidden;border:1px solid var(--border-dim)">
+        <img src="${a.img}" alt="${a.name}" style="width:100%;height:100%;object-fit:cover">
+      </div>
+      <div class="home-ranking-info">
+        <div class="home-ranking-name">${a.name}</div>
+        <div class="home-ranking-meta">
+          <span style="color:${titleColors[a.title] || 'var(--text-dim)'};font-weight:700">${a.title}</span>
+          <span>${a.quests}クエスト達成</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ── RENDER LATEST REVIEWS (3 most recent across all quests) ── */
+function renderLatestReviews() {
+  const row = document.getElementById('home-reviews-row');
+  if (!row) return;
+  const allReviews = [];
+  quests.forEach(q => {
+    (q.reviews || []).forEach(r => {
+      allReviews.push({ ...r, questId: q.id, questTitle: q.title });
+    });
+  });
+  allReviews.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const latest = allReviews.slice(0, 3);
+  row.innerHTML = latest.map(r => `
+    <div class="home-review-card" onclick="openQuestDetail(${r.questId})">
+      <div class="home-review-quest-title">${r.questTitle}</div>
+      <div class="home-review-stars">${'★'.repeat(r.stars)}${'<span class="empty">★</span>'.repeat(5 - r.stars)}</div>
+      <div class="home-review-text">${r.text}</div>
+      <div class="home-review-user">— ${r.user}</div>
+    </div>
+  `).join('');
+}
+
+/* ── QUEST CARD RENDERING (for search results grid) ── */
 function renderQuestCards(list) {
   const grid = document.getElementById('quest-grid');
+  const resultRow = document.getElementById('result-row');
+  if (!grid) return;
+
+  // Show the search results grid
+  grid.style.display = 'grid';
+  if (resultRow) resultRow.style.display = 'flex';
+
   if (!list.length) {
     grid.innerHTML = `
       <div class="no-results">
         <div class="no-results-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
         <p>条件に合うクエストが見つかりませんでした</p>
       </div>`;
+    const rc = document.getElementById('result-count');
+    if (rc) rc.textContent = '0件のクエスト';
     return;
   }
 
@@ -526,7 +662,6 @@ function renderQuestCards(list) {
     const stars = Array.from({ length: 5 }, (_, i) =>
       `<span class="star ${i < q.difficulty ? 'filled' : ''}">★</span>`
     ).join('');
-
     const formatLabel = { home: '自宅完結', outdoor: '現地型', hybrid: 'ハイブリッド' }[q.format] || q.format;
 
     return `
@@ -544,22 +679,10 @@ function renderQuestCards(list) {
           <div class="card-title">${q.title}</div>
           <div class="card-tagline">${q.tagline}</div>
           <div class="card-meta">
-            <div class="card-meta-item">
-              <span class="card-meta-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg></span>
-              <div class="card-difficulty">${stars}</div>
-            </div>
-            <div class="card-meta-item">
-              <span class="card-meta-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-              <span>${q.players}</span>
-            </div>
-            <div class="card-meta-item">
-              <span class="card-meta-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
-              <span>${q.estimatedTime}</span>
-            </div>
-            <div class="card-meta-item">
-              <span class="card-meta-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-              <span>${q.region}</span>
-            </div>
+            <div class="card-meta-item"><div class="card-difficulty">${stars}</div></div>
+            <div class="card-meta-item"><span>${q.players}</span></div>
+            <div class="card-meta-item"><span>${q.estimatedTime}</span></div>
+            <div class="card-meta-item"><span>${q.region}</span></div>
           </div>
           <div class="card-meta" style="margin-top:0.3rem">
             <div class="card-meta-item">
@@ -580,53 +703,71 @@ function renderQuestCards(list) {
     `;
   }).join('');
 
-  document.getElementById('result-count').textContent = `${list.length}件のクエスト`;
+  const rc = document.getElementById('result-count');
+  if (rc) rc.textContent = `${list.length}件のクエスト`;
 }
 
-/* ── SEARCH & FILTER ── */
+/* ── SEARCH & FILTER (Dropdown-based) ── */
 let currentFilter = 'all';
 
-function setFilter(filter, btn) {
-  currentFilter = filter;
-  document.querySelectorAll('#filter-row .filter-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  applyFilters();
-}
-
 function setPurposeFilter(purpose) {
-  const filterMap = { 'puzzle': 'puzzle', 'outdoor': 'outdoor', 'boardgame': 'boardgame', 'home': 'home', 'region': 'all' };
-  currentFilter = filterMap[purpose] || 'all';
-  document.querySelectorAll('#filter-row .filter-chip').forEach(c => {
-    c.classList.remove('active');
-    const chipFilter = c.getAttribute('onclick')?.match(/setFilter\('(.+?)'/)?.[1];
-    if (chipFilter === currentFilter) c.classList.add('active');
-  });
-  if (currentFilter === 'all') document.querySelector('#filter-row .filter-chip')?.classList.add('active');
-  applyFilters();
+  // Map purpose to genre filter dropdown
+  const genreMap = { 'puzzle': '謎解き', 'boardgame': '体験型', 'home': '', 'outdoor': '', 'region': '' };
+  const formatMap = { 'home': 'home', 'outdoor': 'outdoor' };
+  const genreSelect = document.getElementById('filter-genre');
+  const formatSelect = document.getElementById('filter-format');
+  if (genreSelect && genreMap[purpose]) genreSelect.value = genreMap[purpose];
+  if (formatSelect && formatMap[purpose]) formatSelect.value = formatMap[purpose];
+  applyDropdownFilters();
   setTimeout(() => {
     const grid = document.getElementById('quest-grid');
     if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 100);
 }
 
-function handleSearch() { applyFilters(); }
-function handleSort() { applyFilters(); }
+function setRegionFilter(region) {
+  // Set keyword search to region name and apply
+  const input = document.getElementById('search-input');
+  if (input) input.value = region;
+  applyDropdownFilters();
+  setTimeout(() => {
+    const grid = document.getElementById('quest-grid');
+    if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
 
-function applyFilters() {
-  const keyword = document.getElementById('search-input').value.toLowerCase();
-  const sort = document.getElementById('sort-select').value;
+function handleSearch() { applyDropdownFilters(); }
+function handleSort() { applyDropdownFilters(); }
+
+function applyDropdownFilters() {
+  const keyword = (document.getElementById('search-input')?.value || '').toLowerCase();
+  const genre = document.getElementById('filter-genre')?.value || '';
+  const format = document.getElementById('filter-format')?.value || '';
+  const difficulty = document.getElementById('filter-difficulty')?.value || '';
+  const time = document.getElementById('filter-time')?.value || '';
+  const price = document.getElementById('filter-price')?.value || '';
+  const sort = document.getElementById('sort-select')?.value || 'newest';
 
   let filtered = quests.filter(q => {
+    // Keyword
     if (keyword && !q.title.toLowerCase().includes(keyword) &&
         !q.genre.toLowerCase().includes(keyword) &&
         !q.subGenre?.toLowerCase().includes(keyword) &&
         !q.region.toLowerCase().includes(keyword)) return false;
-    if (currentFilter === 'home' && q.format !== 'home') return false;
-    if (currentFilter === 'outdoor' && q.format !== 'outdoor' && q.format !== 'hybrid') return false;
-    if (currentFilter === 'beginner' && q.difficulty > 2) return false;
-    if (currentFilter === 'advanced' && q.difficulty < 3) return false;
-    if (currentFilter === 'puzzle' && q.genre !== '謎解き' && q.genre !== '暗号解読') return false;
-    if (currentFilter === 'boardgame' && q.genre !== 'ボードゲーム') return false;
+    // Genre
+    if (genre && q.genre !== genre && q.subGenre !== genre) return false;
+    // Format
+    if (format && q.format !== format) return false;
+    // Difficulty
+    if (difficulty && q.difficulty !== parseInt(difficulty)) return false;
+    // Time
+    if (time === 'short' && !q.estimatedTime.includes('1') && !q.estimatedTime.includes('2')) return false;
+    if (time === 'medium' && !q.estimatedTime.includes('2') && !q.estimatedTime.includes('3') && !q.estimatedTime.includes('4')) return false;
+    if (time === 'long' && !q.estimatedTime.includes('5') && !q.estimatedTime.includes('6')) return false;
+    // Price
+    if (price === 'low' && q.price > 2000) return false;
+    if (price === 'mid' && (q.price <= 2000 || q.price > 4000)) return false;
+    if (price === 'high' && q.price <= 4000) return false;
     return true;
   });
 
@@ -635,11 +776,30 @@ function applyFilters() {
     case 'popular': filtered.sort((a, b) => b.salesCount - a.salesCount); break;
     case 'price-low': filtered.sort((a, b) => a.price - b.price); break;
     case 'price-high': filtered.sort((a, b) => b.price - a.price); break;
-    case 'difficulty-low': filtered.sort((a, b) => a.difficulty - b.difficulty); break;
-    case 'difficulty-high': filtered.sort((a, b) => b.difficulty - a.difficulty); break;
   }
 
   renderQuestCards(filtered);
+}
+
+/* Legacy filter function kept for compatibility */
+function applyFilters() { applyDropdownFilters(); }
+
+/* Show all quests — triggered by "もっと見る" buttons */
+function showAllQuests() {
+  // Reset all filters
+  ['filter-genre', 'filter-format', 'filter-difficulty', 'filter-time', 'filter-price'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const sortEl = document.getElementById('sort-select');
+  if (sortEl) sortEl.value = 'newest';
+  const inputEl = document.getElementById('search-input');
+  if (inputEl) inputEl.value = '';
+  applyDropdownFilters();
+  setTimeout(() => {
+    const section = document.getElementById('home-search');
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
 }
 
 /* ── QUEST DETAIL ── */
@@ -1460,10 +1620,24 @@ async function loadQuests() {
       updateHeaderUser();
       navigateTo('quest-board', {
         transition: false,
-        onShow: () => { renderQuestCards(quests); updateHeaderUser(); }
+        onShow: () => { renderHomeBoard(); updateHeaderUser(); }
       });
       startBGM();
     }
+  }
+
+  // Header search bar → sync to search input and trigger
+  const headerSearchInput = document.getElementById('header-search-input');
+  if (headerSearchInput) {
+    headerSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.value = headerSearchInput.value;
+        applyDropdownFilters();
+        const section = document.getElementById('home-search');
+        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
   }
 
   // Init Shopify
