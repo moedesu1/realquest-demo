@@ -1,10 +1,60 @@
 /* ============================================================
-   REAL QUEST — App v2
-   Platform MVP: Data + Navigation + Rendering + BGM + Effects
+   REAL QUEST — App v3
+   Production: Supabase Auth + DB + Shopify Cart + Analytics
    ============================================================ */
 
-/* ── QUEST DATA ── */
-const quests = [
+/* ── CONFIG (from js/config.js) ── */
+const SUPABASE_URL = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.SUPABASE_URL) || 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.SUPABASE_ANON_KEY) || 'YOUR_SUPABASE_ANON_KEY';
+const SHOPIFY_DOMAIN = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.SHOPIFY_DOMAIN) || 'YOUR_STORE.myshopify.com';
+const SHOPIFY_STOREFRONT_TOKEN = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.SHOPIFY_STOREFRONT_TOKEN) || 'YOUR_STOREFRONT_ACCESS_TOKEN';
+const GA4_ID = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.GA4_ID) || 'G-XXXXXXXXXX';
+
+/* ── SUPABASE CLIENT ── */
+let supabaseClient = null;
+function getSupabase() {
+  if (!supabaseClient && window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return supabaseClient;
+}
+
+/* ── SHOPIFY CLIENT ── */
+let shopifyClient = null;
+let shopifyCheckout = null;
+
+async function initShopify() {
+  if (!window.ShopifyBuy) return;
+  try {
+    shopifyClient = ShopifyBuy.buildClient({
+      domain: SHOPIFY_DOMAIN,
+      storefrontAccessToken: SHOPIFY_STOREFRONT_TOKEN,
+    });
+    // Restore or create checkout
+    const savedCheckoutId = localStorage.getItem('rq_checkout_id');
+    if (savedCheckoutId) {
+      try {
+        shopifyCheckout = await shopifyClient.checkout.fetch(savedCheckoutId);
+        if (shopifyCheckout.completedAt) {
+          shopifyCheckout = await shopifyClient.checkout.create();
+          localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
+        }
+      } catch {
+        shopifyCheckout = await shopifyClient.checkout.create();
+        localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
+      }
+    } else {
+      shopifyCheckout = await shopifyClient.checkout.create();
+      localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
+    }
+    updateCartBadge();
+  } catch (e) {
+    console.error('Shopify init error:', e);
+  }
+}
+
+/* ── FALLBACK QUEST DATA ── */
+const fallbackQuests = [
   {
     id: 1,
     title: '大阪怪奇事件ファイル',
@@ -21,6 +71,7 @@ const quests = [
     estimatedTime: '2〜4時間',
     players: '1〜3人',
     region: '自宅完結',
+    purposes: ['puzzle', 'home'],
     items: [
       { icon: '◆', name: '捜査資料ファイル（証拠写真・調書入り）' },
       { icon: '◆', name: '謎の鍵（金属製）' },
@@ -53,6 +104,7 @@ const quests = [
     estimatedTime: '3〜5時間',
     players: '1〜4人',
     region: '奈良',
+    purposes: ['puzzle', 'outdoor'],
     items: [
       { icon: '◆', name: '古びた手紙（暗号入り）' },
       { icon: '◆', name: '木札（ヒント刻印入り）' },
@@ -84,6 +136,7 @@ const quests = [
     estimatedTime: '1〜2時間',
     players: '1人',
     region: '自宅完結',
+    purposes: ['puzzle', 'home'],
     items: [
       { icon: '◆', name: '古い携帯電話本体（ギミック内蔵）' },
       { icon: '◆', name: 'ギルドからの依頼書' },
@@ -113,6 +166,7 @@ const quests = [
     estimatedTime: '2〜3時間',
     players: '1〜2人',
     region: '自宅完結',
+    purposes: ['puzzle', 'home'],
     items: [
       { icon: '◆', name: '誰かの財布（レシートや身分証入り）' },
       { icon: '◆', name: 'ギルドからの依頼書' },
@@ -143,6 +197,7 @@ const quests = [
     estimatedTime: '3〜5時間',
     players: '2〜5人',
     region: '自宅完結',
+    purposes: ['boardgame', 'home'],
     items: [
       { icon: '◆', name: '招待状（封蝋付き）' },
       { icon: '◆', name: '専用ボードゲーム一式' },
@@ -175,6 +230,7 @@ const quests = [
     estimatedTime: '—',
     players: '—',
     region: '自宅完結',
+    purposes: ['home'],
     items: [
       { icon: '◆', name: 'リアクエ専用ドリンク' },
       { icon: '◆', name: 'ヒント解放コード付きカード' },
@@ -191,17 +247,22 @@ const quests = [
   },
 ];
 
+/* ── QUEST DATA (mutable, loaded from Supabase or fallback) ── */
+let quests = [...fallbackQuests];
+
 /* ── USER STATE ── */
 const userState = {
   loggedIn: false,
-  role: null, // 'adventurer' | 'creator'
+  userId: null,
+  role: null,
   name: '名もなき冒険者',
   avatar: '冒',
   title: '見習い',
   questsCompleted: 0,
   questsAccepted: 0,
-  coins: 0,
+  coins: 2450,
   acceptedQuests: [],
+  reviewedQuests: [],
 };
 
 /* Title progression */
@@ -211,6 +272,13 @@ const titleLevels = [
   { name: '勇者', min: 5 },
   { name: '賢者', min: 10 },
 ];
+
+/* ── GA4 ANALYTICS ── */
+function trackEvent(name, params = {}) {
+  if (typeof gtag === 'function') {
+    gtag('event', name, params);
+  }
+}
 
 /* ── NAVIGATION ── */
 let currentPage = 'opening';
@@ -224,6 +292,10 @@ function navigateTo(pageId, options = {}) {
     'rankings': 'page-rankings',
     'mypage': 'page-mypage',
     'creator': 'page-creator',
+    'terms': 'page-terms',
+    'privacy': 'page-privacy',
+    'tokushoho': 'page-tokushoho',
+    'contact': 'page-contact',
   };
 
   const targetEl = pageMap[pageId];
@@ -232,6 +304,9 @@ function navigateTo(pageId, options = {}) {
   // Save current scroll
   const currentEl = document.querySelector('.page.active');
   if (currentEl) savedScrollPositions[currentEl.id] = currentEl.scrollTop;
+
+  // Track page view
+  trackEvent('page_view', { page_name: pageId });
 
   // Transition
   if (options.transition !== false) {
@@ -270,10 +345,223 @@ function updateActiveNavLinks() {
   });
 }
 
-/* ── LOGIN ── */
-function loginAsAdventurer() {
+/* ── AUTHENTICATION ── */
+function switchAuthTab(mode) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.auth-tab[data-mode="${mode}"]`)?.classList.add('active');
+
+  const nameField = document.getElementById('auth-name-field');
+  const submitBtn = document.getElementById('auth-submit-btn');
+  const authError = document.getElementById('auth-error');
+
+  if (mode === 'register') {
+    nameField.style.display = 'block';
+    submitBtn.textContent = '冒険を始める';
+  } else {
+    nameField.style.display = 'none';
+    submitBtn.textContent = 'ログイン';
+  }
+  authError.textContent = '';
+  authError.style.display = 'none';
+}
+
+async function handleAuth(e) {
+  e.preventDefault();
+  const sb = getSupabase();
+  if (!sb) {
+    // Fallback: no Supabase configured
+    loginAsAdventurerFallback();
+    return;
+  }
+
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const activeTab = document.querySelector('.auth-tab.active')?.dataset.mode || 'login';
+  const authError = document.getElementById('auth-error');
+  const submitBtn = document.getElementById('auth-submit-btn');
+
+  authError.style.display = 'none';
+  submitBtn.disabled = true;
+  submitBtn.textContent = '処理中...';
+
+  try {
+    if (activeTab === 'register') {
+      const displayName = document.getElementById('auth-name').value.trim() || '名もなき冒険者';
+      const { data, error } = await sb.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { display_name: displayName },
+        },
+      });
+      if (error) throw error;
+      if (data.user && !data.session) {
+        authError.textContent = '確認メールを送信しました。メールを確認してください。';
+        authError.style.display = 'block';
+        authError.classList.add('auth-success');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '冒険を始める';
+        return;
+      }
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    }
+    trackEvent('login', { method: 'email' });
+  } catch (err) {
+    authError.classList.remove('auth-success');
+    authError.textContent = getAuthErrorMessage(err.message);
+    authError.style.display = 'block';
+    submitBtn.disabled = false;
+    submitBtn.textContent = activeTab === 'register' ? '冒険を始める' : 'ログイン';
+  }
+}
+
+function getAuthErrorMessage(msg) {
+  if (msg.includes('Invalid login')) return 'メールアドレスまたはパスワードが正しくありません。';
+  if (msg.includes('already registered')) return 'このメールアドレスは既に登録されています。';
+  if (msg.includes('Password should be')) return 'パスワードは6文字以上で設定してください。';
+  if (msg.includes('valid email')) return '有効なメールアドレスを入力してください。';
+  return 'エラーが発生しました。もう一度お試しください。';
+}
+
+/* ── PASSWORD RESET ── */
+function showPasswordReset() {
+  document.querySelector('.auth-form').style.display = 'none';
+  document.querySelector('.auth-tabs').style.display = 'none';
+  document.getElementById('auth-forgot-link').style.display = 'none';
+  document.getElementById('auth-reset-form').style.display = 'block';
+  document.getElementById('reset-error').style.display = 'none';
+  document.getElementById('reset-success').style.display = 'none';
+}
+
+function backToLogin() {
+  document.querySelector('.auth-form').style.display = 'block';
+  document.querySelector('.auth-tabs').style.display = 'flex';
+  document.getElementById('auth-forgot-link').style.display = 'block';
+  document.getElementById('auth-reset-form').style.display = 'none';
+}
+
+async function handlePasswordReset(e) {
+  e.preventDefault();
+  const sb = getSupabase();
+  const email = document.getElementById('reset-email').value.trim();
+  const errorEl = document.getElementById('reset-error');
+  const successEl = document.getElementById('reset-success');
+  const submitBtn = document.getElementById('reset-submit-btn');
+
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  if (!email) {
+    errorEl.textContent = 'メールアドレスを入力してください。';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  if (!sb) {
+    errorEl.textContent = 'サービスに接続できません。';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = '送信中...';
+
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname,
+    });
+    if (error) throw error;
+
+    successEl.textContent = 'リセットリンクを送信しました。メールをご確認ください。';
+    successEl.style.display = 'block';
+  } catch (err) {
+    errorEl.textContent = 'リセットメールの送信に失敗しました。メールアドレスをご確認ください。';
+    errorEl.style.display = 'block';
+  }
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'リセットリンクを送信';
+}
+
+async function handleLogout() {
+  const sb = getSupabase();
+  if (sb) {
+    await sb.auth.signOut();
+  }
+
+  // Reset state
+  userState.loggedIn = false;
+  userState.userId = null;
+  userState.role = null;
+  userState.name = '名もなき冒険者';
+  userState.avatar = '冒';
+  userState.title = '見習い';
+  userState.questsCompleted = 0;
+  userState.questsAccepted = 0;
+  userState.coins = 2450;
+  userState.acceptedQuests = [];
+  userState.reviewedQuests = [];
+
+  stopBGM();
+  trackEvent('logout');
+  navigateTo('opening', { transitionText: 'ログアウトしています...', delay: 600 });
+}
+
+async function loadUserProfile(userId) {
+  const sb = getSupabase();
+  if (!sb) return;
+
+  try {
+    // Load profile
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (profile) {
+      userState.name = profile.display_name;
+      userState.avatar = profile.avatar_char;
+      userState.title = profile.title;
+      userState.questsCompleted = profile.quests_completed;
+      userState.questsAccepted = profile.quests_accepted;
+      userState.coins = profile.coins;
+      userState.role = profile.role;
+    }
+
+    // Load accepted quests
+    const { data: accepted } = await sb
+      .from('accepted_quests')
+      .select('quest_id, status, accepted_at')
+      .eq('user_id', userId)
+      .order('accepted_at', { ascending: false });
+
+    if (accepted) {
+      userState.acceptedQuests = accepted.map(a => a.quest_id);
+    }
+
+    // Load reviewed quest IDs
+    const { data: reviewed } = await sb
+      .from('reviews')
+      .select('quest_id')
+      .eq('user_id', userId);
+
+    if (reviewed) {
+      userState.reviewedQuests = reviewed.map(r => r.quest_id);
+    }
+  } catch (e) {
+    console.error('Profile load error:', e);
+  }
+}
+
+/* Fallback login (when Supabase not configured) */
+function loginAsAdventurerFallback() {
   userState.loggedIn = true;
   userState.role = 'adventurer';
+  const nameInput = document.getElementById('auth-name')?.value?.trim();
+  if (nameInput) userState.name = nameInput;
 
   playStartSFX();
   setTimeout(() => startBGM(), 300);
@@ -281,7 +569,8 @@ function loginAsAdventurer() {
   navigateTo('quest-board', {
     transitionText: 'ギルド掲示板を開いています...',
     delay: 1200,
-    onShow: () => {
+    onShow: async () => {
+      await loadQuestsFromDB();
       renderQuestCards(quests);
       updateHeaderUser();
     }
@@ -298,6 +587,245 @@ function loginAsCreator() {
 function updateHeaderUser() {
   document.querySelectorAll('#header-username').forEach(el => el.textContent = userState.name);
   document.querySelectorAll('#header-title').forEach(el => el.textContent = userState.title);
+}
+
+/* ── LOAD QUESTS FROM SUPABASE ── */
+async function loadQuestsFromDB() {
+  const sb = getSupabase();
+  if (!sb) return;
+
+  try {
+    const { data: dbQuests, error } = await sb
+      .from('quests')
+      .select('*, quest_items(*)')
+      .eq('is_published', true)
+      .order('id');
+
+    if (error) throw error;
+    if (!dbQuests || dbQuests.length === 0) return;
+
+    // Map DB format to app format
+    quests = dbQuests.map(q => {
+      const fallback = fallbackQuests.find(fq => fq.id === q.id);
+      return {
+        id: q.id,
+        title: q.title,
+        tagline: q.tagline,
+        rank: q.rank,
+        difficulty: q.difficulty,
+        price: q.price,
+        category: q.category,
+        format: q.format,
+        genre: q.genre,
+        subGenre: q.sub_genre,
+        isNew: q.is_new,
+        image: q.image_url || (fallback ? fallback.image : ''),
+        estimatedTime: q.estimated_time,
+        players: q.players,
+        region: q.region,
+        purposes: q.purposes || [],
+        items: q.quest_items
+          ? q.quest_items.sort((a, b) => a.sort_order - b.sort_order).map(i => ({ icon: i.icon, name: i.name }))
+          : (fallback ? fallback.items : []),
+        prologue: q.prologue,
+        cautions: q.cautions || [],
+        reviewAvg: parseFloat(q.review_avg) || 0,
+        reviewCount: q.review_count || 0,
+        salesCount: q.sales_count || 0,
+        shopifyVariantId: q.shopify_variant_id,
+        shopifyProductId: q.shopify_product_id,
+        // Reviews loaded dynamically
+        reviews: fallback ? fallback.reviews : [],
+      };
+    });
+  } catch (e) {
+    console.error('Failed to load quests from DB, using fallback:', e);
+  }
+}
+
+/* ── LOAD REVIEWS FROM SUPABASE ── */
+async function loadReviews(questId) {
+  const sb = getSupabase();
+  if (!sb) return null;
+
+  try {
+    const { data: reviews, error } = await sb
+      .from('reviews')
+      .select(`
+        id, rating, text, sub_ratings, likes_count, created_at,
+        profiles:user_id (display_name, avatar_char, title, quests_completed)
+      `)
+      .eq('quest_id', questId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    if (!reviews || reviews.length === 0) return null;
+
+    return reviews.map(r => ({
+      user: r.profiles?.display_name || '冒険者',
+      title: r.profiles?.title || '見習い',
+      avatar: r.profiles?.avatar_char || '冒',
+      level: r.profiles?.quests_completed || 0,
+      rank: 'C',
+      stars: r.rating,
+      date: new Date(r.created_at).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.'),
+      text: r.text,
+      sub: r.sub_ratings || {},
+      likes: r.likes_count || 0,
+      reviewId: r.id,
+    }));
+  } catch (e) {
+    console.error('Failed to load reviews:', e);
+    return null;
+  }
+}
+
+/* ── SUBMIT REVIEW ── */
+async function submitReview(questId) {
+  const sb = getSupabase();
+  if (!sb || !userState.userId) return;
+
+  const rating = parseInt(document.getElementById('review-rating')?.value);
+  const text = document.getElementById('review-text')?.value?.trim();
+  const craftRating = parseInt(document.getElementById('review-sub-craft')?.value) || 3;
+  const storyRating = parseInt(document.getElementById('review-sub-story')?.value) || 3;
+  const volumeRating = parseInt(document.getElementById('review-sub-volume')?.value) || 3;
+  const errorEl = document.getElementById('review-error');
+  const formEl = document.getElementById('review-report-form');
+  const successEl = document.getElementById('review-success');
+
+  if (errorEl) { errorEl.style.display = 'none'; }
+
+  if (!rating || rating < 1 || rating > 5) {
+    if (errorEl) { errorEl.textContent = '総合評価の星を選択してください。'; errorEl.style.display = 'block'; }
+    shakeElement(errorEl);
+    return;
+  }
+  if (!text || text.length < 10) {
+    if (errorEl) { errorEl.textContent = '冒険の報告は10文字以上でお願いします。'; errorEl.style.display = 'block'; }
+    shakeElement(errorEl);
+    return;
+  }
+
+  const submitBtn = document.getElementById('review-submit-btn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '報告書を提出中...'; }
+
+  try {
+    const { error } = await sb.from('reviews').insert({
+      quest_id: questId,
+      user_id: userState.userId,
+      rating,
+      text,
+      sub_ratings: { craft: craftRating, story: storyRating, volume: volumeRating },
+    });
+
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error('このクエストの報告書は既に提出済みです。');
+      }
+      throw error;
+    }
+
+    // Mark as reviewed
+    if (!userState.reviewedQuests.includes(questId)) {
+      userState.reviewedQuests.push(questId);
+    }
+
+    trackEvent('review_submit', { quest_id: questId, rating });
+    playReviewSFX();
+
+    // Show success state
+    if (formEl) formEl.style.display = 'none';
+    if (successEl) {
+      successEl.style.display = 'block';
+      successEl.classList.add('animate-in');
+    }
+
+    // Refresh quest data in background
+    const quest = quests.find(q => q.id === questId);
+    if (quest) {
+      const dbReviews = await loadReviews(questId);
+      if (dbReviews) quest.reviews = dbReviews;
+      const { data: updated } = await sb.from('quests').select('review_avg, review_count').eq('id', questId).single();
+      if (updated) {
+        quest.reviewAvg = parseFloat(updated.review_avg) || quest.reviewAvg;
+        quest.reviewCount = updated.review_count || quest.reviewCount;
+      }
+    }
+  } catch (err) {
+    if (errorEl) {
+      errorEl.textContent = err.message || '報告書の提出に失敗しました。もう一度お試しください。';
+      errorEl.style.display = 'block';
+      shakeElement(errorEl);
+    }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '報告書を提出する'; }
+  }
+}
+
+/* Shake animation helper */
+function shakeElement(el) {
+  if (!el) return;
+  el.classList.remove('shake');
+  void el.offsetWidth; // reflow
+  el.classList.add('shake');
+}
+
+/* Review submission SFX */
+function playReviewSFX() {
+  try {
+    const ctx = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.1;
+    gain.connect(ctx.destination);
+
+    // Quill writing sound + seal stamp
+    const notes = [392, 440, 523.25, 587.33, 659.25];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      env.gain.setValueAtTime(0.3, now + i * 0.12);
+      env.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.35);
+    });
+
+    // Final stamp chord
+    [523.25, 659.25, 783.99].forEach(freq => {
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      env.gain.setValueAtTime(0.4, now + 0.7);
+      env.gain.exponentialRampToValueAtTime(0.01, now + 1.8);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(now + 0.7);
+      osc.stop(now + 2.0);
+    });
+  } catch (e) {}
+}
+
+/* Load user's existing review for a quest */
+async function loadMyReview(questId) {
+  const sb = getSupabase();
+  if (!sb || !userState.userId) return null;
+
+  try {
+    const { data } = await sb
+      .from('reviews')
+      .select('rating, text, sub_ratings, created_at')
+      .eq('quest_id', questId)
+      .eq('user_id', userState.userId)
+      .single();
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 /* ── QUEST CARD RENDERING ── */
@@ -374,46 +902,57 @@ function renderQuestCards(list) {
 }
 
 /* ── SEARCH & FILTER ── */
-let currentFilter = 'all';
-
-function setFilter(filter, btn) {
-  currentFilter = filter;
-  document.querySelectorAll('#filter-row .filter-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  applyFilters();
-}
+const activeFilters = {
+  keyword: '',
+  category: 'all',
+};
 
 function setPurposeFilter(purpose) {
-  // Map purpose to filter and scroll to results
-  const filterMap = {
-    'puzzle': 'puzzle',
-    'outdoor': 'outdoor',
-    'boardgame': 'boardgame',
-    'home': 'home',
-    'region': 'all', // TODO: region selector
-  };
-  currentFilter = filterMap[purpose] || 'all';
-
-  // Update chip UI
-  document.querySelectorAll('#filter-row .filter-chip').forEach(c => {
-    c.classList.remove('active');
-    const chipFilter = c.getAttribute('onclick')?.match(/setFilter\('(.+?)'/)?.[1];
-    if (chipFilter === currentFilter) c.classList.add('active');
-  });
-  if (currentFilter === 'all') {
-    document.querySelector('#filter-row .filter-chip')?.classList.add('active');
+  if (purpose === 'region') {
+    activeFilters.category = activeFilters.category === 'outdoor' ? 'all' : 'outdoor';
+  } else {
+    activeFilters.category = activeFilters.category === purpose ? 'all' : purpose;
   }
 
+  document.querySelectorAll('.purpose-card').forEach(card => {
+    card.classList.remove('active');
+    const cardPurpose = card.getAttribute('onclick')?.match(/setPurposeFilter\('(.+?)'\)/)?.[1];
+    if (cardPurpose === purpose && activeFilters.category !== 'all') {
+      card.classList.add('active');
+    }
+  });
+
+  syncFilterChips();
   applyFilters();
 
-  // Scroll to the quest grid
   setTimeout(() => {
-    const grid = document.getElementById('quest-grid');
-    if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const header = document.getElementById('search-results-header');
+    const target = (header && header.style.display !== 'none') ? header : document.getElementById('quest-grid');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 100);
 }
 
+function setFilter(filter, btn) {
+  activeFilters.category = filter;
+  document.querySelectorAll('#filter-row .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.purpose-card').forEach(card => card.classList.remove('active'));
+  applyFilters();
+}
+
+function syncFilterChips() {
+  document.querySelectorAll('#filter-row .filter-chip').forEach(c => {
+    c.classList.remove('active');
+    const chipFilter = c.getAttribute('onclick')?.match(/setFilter\('(.+?)'/)?.[1];
+    if (chipFilter === activeFilters.category) c.classList.add('active');
+  });
+  if (activeFilters.category === 'all') {
+    document.querySelector('#filter-row .filter-chip')?.classList.add('active');
+  }
+}
+
 function handleSearch() {
+  activeFilters.keyword = document.getElementById('search-input').value.trim().toLowerCase();
   applyFilters();
 }
 
@@ -422,28 +961,27 @@ function handleSort() {
 }
 
 function applyFilters() {
-  const keyword = document.getElementById('search-input').value.toLowerCase();
+  const { keyword, category } = activeFilters;
   const sort = document.getElementById('sort-select').value;
+  const isFiltered = keyword !== '' || category !== 'all';
 
   let filtered = quests.filter(q => {
-    // Keyword
     if (keyword && !q.title.toLowerCase().includes(keyword) &&
         !q.genre.toLowerCase().includes(keyword) &&
         !q.subGenre?.toLowerCase().includes(keyword) &&
-        !q.region.toLowerCase().includes(keyword)) {
+        !q.tagline.toLowerCase().includes(keyword)) {
       return false;
     }
-    // Category filter
-    if (currentFilter === 'home' && q.format !== 'home') return false;
-    if (currentFilter === 'outdoor' && q.format !== 'outdoor' && q.format !== 'hybrid') return false;
-    if (currentFilter === 'beginner' && q.difficulty > 2) return false;
-    if (currentFilter === 'advanced' && q.difficulty < 3) return false;
-    if (currentFilter === 'puzzle' && q.genre !== '謎解き' && q.genre !== '暗号解読') return false;
-    if (currentFilter === 'boardgame' && q.genre !== 'ボードゲーム') return false;
+    if (category !== 'all') {
+      if (category === 'beginner' && q.difficulty > 2) return false;
+      if (category === 'advanced' && q.difficulty < 3) return false;
+      if (['puzzle', 'outdoor', 'boardgame', 'home'].includes(category)) {
+        if (!q.purposes || !q.purposes.includes(category)) return false;
+      }
+    }
     return true;
   });
 
-  // Sort
   switch (sort) {
     case 'newest': filtered.sort((a, b) => b.id - a.id); break;
     case 'popular': filtered.sort((a, b) => b.salesCount - a.salesCount); break;
@@ -453,7 +991,27 @@ function applyFilters() {
     case 'difficulty-high': filtered.sort((a, b) => b.difficulty - a.difficulty); break;
   }
 
+  const header = document.getElementById('search-results-header');
+  if (header) {
+    if (isFiltered) {
+      header.style.display = 'flex';
+      document.getElementById('search-results-count').textContent =
+        `${filtered.length}件のクエストが見つかりました`;
+    } else {
+      header.style.display = 'none';
+    }
+  }
+
   renderQuestCards(filtered);
+}
+
+function clearFilters() {
+  activeFilters.keyword = '';
+  activeFilters.category = 'all';
+  document.getElementById('search-input').value = '';
+  document.querySelectorAll('.purpose-card').forEach(card => card.classList.remove('active'));
+  syncFilterChips();
+  applyFilters();
 }
 
 /* ── QUEST DETAIL ── */
@@ -461,10 +1019,19 @@ function openQuestDetail(questId) {
   const quest = quests.find(q => q.id === questId);
   if (!quest) return;
 
+  trackEvent('view_item', { item_id: questId, item_name: quest.title, price: quest.price });
+
   navigateTo('detail', {
     transitionText: '依頼書を準備中...',
     delay: 700,
-    onShow: () => renderDetail(quest),
+    onShow: async () => {
+      // Try to load reviews from DB
+      const dbReviews = await loadReviews(questId);
+      if (dbReviews && dbReviews.length > 0) {
+        quest.reviews = dbReviews;
+      }
+      renderDetail(quest);
+    },
   });
 }
 
@@ -473,8 +1040,9 @@ function renderDetail(quest) {
   const reviewStars = n => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
   const isAccepted = userState.acceptedQuests.includes(quest.id);
   const formatLabel = { home: '自宅完結', outdoor: '現地型', hybrid: 'ハイブリッド' }[quest.format] || quest.format;
+  const hasShopify = !!quest.shopifyVariantId;
 
-  // Review distribution (mock)
+  // Review distribution
   const dist = [0, 0, 0, 0, 0];
   quest.reviews.forEach(r => dist[r.stars - 1]++);
   const maxDist = Math.max(...dist, 1);
@@ -546,7 +1114,7 @@ function renderDetail(quest) {
       </ul>
     </div>
 
-    <!-- ACCEPTANCE RITUAL UI -->
+    <!-- ACCEPTANCE / CART AREA -->
     <div class="accept-area ${isAccepted ? 'accepted' : ''}" id="accept-area-${quest.id}">
       <div class="accept-header">
         <div class="accept-title">クエスト受注書</div>
@@ -569,11 +1137,15 @@ function renderDetail(quest) {
           <div class="accept-shipping">税込・送料込 ／ 発送目安：受注後3〜5営業日</div>
         </div>
 
-        ${isAccepted ? '' : `
-          <button class="btn-accept" onclick="acceptQuest(${quest.id})">
+        ${isAccepted ? '' : (hasShopify ? `
+          <button class="btn-accept btn-cart" onclick="addToCart(${quest.id})" aria-label="カートに追加">
+            カートに追加する
+          </button>
+        ` : `
+          <button class="btn-accept" onclick="acceptQuest(${quest.id})" aria-label="クエストを受諾する">
             このクエストを受諾する
           </button>
-        `}
+        `)}
       </div>
 
       <div class="acceptance-stamp" id="stamp-${quest.id}">受 諾</div>
@@ -587,13 +1159,21 @@ function renderDetail(quest) {
       </div>
     </div>
 
-    <!-- REVIEWS (HV-style) -->
+    <!-- REVIEW FORM / SUBMITTED STATE -->
+    ${isAccepted && userState.loggedIn ? renderReviewSection(quest) : ''}
+    ${!isAccepted && userState.loggedIn ? `
+    <div class="review-locked-notice">
+      <span class="review-locked-icon">◆</span>
+      クエストを受諾するとレビューを投稿できます
+    </div>
+    ` : ''}
+
+    <!-- REVIEWS -->
     <div class="reviews-section">
       <div class="detail-section-title">冒険者レビュー</div>
 
       <div class="reviews-header">
         <div class="reviews-total">総数：<strong>${quest.reviewCount}</strong>件</div>
-        <div class="reviews-write-link">レビューを書く</div>
       </div>
 
       <div class="review-summary">
@@ -639,7 +1219,7 @@ function renderDetail(quest) {
                 <div class="review-stars">${'★'.repeat(r.stars)}${'<span class="empty">★</span>'.repeat(5 - r.stars)}</div>
               </div>
 
-              <div class="review-text">${r.text}</div>
+              <div class="review-text">${escapeHtml(r.text)}</div>
 
               ${r.sub ? `
                 <div class="review-sub-ratings">
@@ -650,7 +1230,7 @@ function renderDetail(quest) {
               ` : ''}
 
               <div class="review-card-footer">
-                <button class="review-like-btn" onclick="event.stopPropagation(); toggleLike(this, ${quest.id}, ${ri})">
+                <button class="review-like-btn" onclick="event.stopPropagation(); toggleLike(this, ${quest.id}, ${ri})" aria-label="いいね">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> ${r.likes || 0}
                 </button>
                 <span class="review-report">不適切なレビューを報告</span>
@@ -663,22 +1243,214 @@ function renderDetail(quest) {
   `;
 }
 
+/* XSS prevention helper */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ── REVIEW SECTION RENDERER ── */
+function renderReviewSection(quest) {
+  const isReviewed = userState.reviewedQuests.includes(quest.id);
+
+  if (isReviewed) {
+    // Find the user's review in loaded reviews
+    const myReview = quest.reviews.find(r =>
+      r.user === userState.name || r.reviewId
+    );
+    const reviewStarsStr = n => '★'.repeat(n) + '<span class="empty">★</span>'.repeat(5 - n);
+
+    return `
+    <div class="review-form-section">
+      <div class="report-scroll">
+        <div class="report-header">
+          <div class="report-ornament">◆ ◇ ◆</div>
+          <div class="report-title">冒険報告書</div>
+          <div class="report-subtitle">— ADVENTURE REPORT —</div>
+        </div>
+        <div class="report-submitted">
+          <div class="report-stamp">提出済</div>
+          <div class="report-submitted-info">
+            <div class="report-submitted-quest">【${escapeHtml(quest.title)}】</div>
+            ${myReview ? `
+              <div class="report-submitted-rating">
+                <span class="report-submitted-stars">${reviewStarsStr(myReview.stars || myReview.rating || 5)}</span>
+              </div>
+              <div class="report-submitted-text">${escapeHtml(myReview.text)}</div>
+              ${myReview.sub ? `
+                <div class="report-submitted-subs">
+                  <span>できたえ: ${reviewStarsStr(myReview.sub.craft || 3)}</span>
+                  <span>ストーリー: ${reviewStarsStr(myReview.sub.story || 3)}</span>
+                  <span>ボリューム: ${reviewStarsStr(myReview.sub.volume || 3)}</span>
+                </div>
+              ` : ''}
+            ` : `
+              <p class="report-submitted-note">冒険報告書は正常に受理されました。</p>
+            `}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Show the form
+  const starRow = (name, hiddenId) => `
+    <div class="report-star-row">
+      <div class="report-star-label">${name}</div>
+      <div class="report-star-group" data-target="${hiddenId}">
+        ${[1,2,3,4,5].map(n => `
+          <button type="button" class="rstar" data-rating="${n}"
+            onmouseenter="previewStars(this)" onmouseleave="unpreviewStars(this)"
+            onclick="setStarRating(this)">★</button>
+        `).join('')}
+      </div>
+      <input type="hidden" id="${hiddenId}" value="0">
+    </div>`;
+
+  return `
+  <div class="review-form-section">
+    <div class="report-scroll" id="review-report-form">
+      <div class="report-header">
+        <div class="report-ornament">◆ ◇ ◆</div>
+        <div class="report-title">冒険報告書</div>
+        <div class="report-subtitle">— ADVENTURE REPORT —</div>
+        <div class="report-quest-name">依頼: 【${escapeHtml(quest.title)}】</div>
+        <div class="report-reporter">報告者: ${escapeHtml(userState.name)}（${userState.title}）</div>
+      </div>
+
+      <form class="report-form" onsubmit="event.preventDefault(); submitReview(${quest.id})">
+        <div class="report-section">
+          <div class="report-section-label">◆ 総合評価</div>
+          ${starRow('この冒険を総合的に評価', 'review-rating')}
+        </div>
+
+        <div class="report-divider"></div>
+
+        <div class="report-section">
+          <div class="report-section-label">◆ 項目別評価</div>
+          ${starRow('できたえ（アイテムの質）', 'review-sub-craft')}
+          ${starRow('ストーリー（物語の魅力）', 'review-sub-story')}
+          ${starRow('ボリューム（満足度）', 'review-sub-volume')}
+        </div>
+
+        <div class="report-divider"></div>
+
+        <div class="report-section">
+          <div class="report-section-label">◆ 冒険の記録</div>
+          <div class="report-textarea-wrap">
+            <textarea id="review-text" class="report-textarea"
+              rows="5" placeholder="この冒険で印象に残ったこと、感動したこと、他の冒険者に伝えたいことを記してください..."
+              ></textarea>
+            <div class="report-textarea-count" id="review-char-count">0文字</div>
+          </div>
+        </div>
+
+        <div class="review-error" id="review-error" style="display:none"></div>
+
+        <button type="submit" class="btn-report-submit" id="review-submit-btn">
+          <span class="btn-report-icon">◆</span>
+          報告書を提出する
+        </button>
+
+        <div class="report-note">
+          ※ 報告書は1つのクエストにつき1回のみ提出できます
+        </div>
+      </form>
+    </div>
+
+    <div class="report-success" id="review-success" style="display:none">
+      <div class="report-success-stamp">受 理</div>
+      <div class="report-success-title">冒険報告書が受理されました</div>
+      <div class="report-success-text">
+        あなたの報告は、これから冒険に挑む者たちの道標となります。
+      </div>
+      <button class="btn-outline" onclick="navigateTo('quest-board')" style="margin-top:1rem">
+        掲示板に戻る →
+      </button>
+    </div>
+  </div>`;
+}
+
+/* ── STAR RATING INTERACTIONS ── */
+function previewStars(btn) {
+  const group = btn.closest('.report-star-group');
+  const rating = parseInt(btn.dataset.rating);
+  group.querySelectorAll('.rstar').forEach(s => {
+    s.classList.toggle('preview', parseInt(s.dataset.rating) <= rating);
+  });
+}
+
+function unpreviewStars(btn) {
+  const group = btn.closest('.report-star-group');
+  const currentVal = parseInt(document.getElementById(group.dataset.target)?.value) || 0;
+  group.querySelectorAll('.rstar').forEach(s => {
+    s.classList.remove('preview');
+    s.classList.toggle('active', parseInt(s.dataset.rating) <= currentVal);
+  });
+}
+
+function setStarRating(btn) {
+  const group = btn.closest('.report-star-group');
+  const rating = parseInt(btn.dataset.rating);
+  const hiddenInput = document.getElementById(group.dataset.target);
+  if (hiddenInput) hiddenInput.value = rating;
+
+  group.querySelectorAll('.rstar').forEach(s => {
+    s.classList.remove('preview');
+    s.classList.toggle('active', parseInt(s.dataset.rating) <= rating);
+  });
+
+  // Pulse animation
+  btn.classList.add('pulse');
+  setTimeout(() => btn.classList.remove('pulse'), 300);
+}
+
+/* Textarea character counter */
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'review-text') {
+    const count = e.target.value.length;
+    const counter = document.getElementById('review-char-count');
+    if (counter) {
+      counter.textContent = `${count}文字`;
+      counter.classList.toggle('valid', count >= 10);
+    }
+  }
+});
+
 /* ── ACCEPT QUEST ── */
-function acceptQuest(questId) {
+async function acceptQuest(questId) {
   const quest = quests.find(q => q.id === questId);
   if (!quest || userState.acceptedQuests.includes(questId)) return;
 
-  // Play acceptance SFX
   playAcceptSFX();
 
-  // Update state
+  // Save to Supabase
+  const sb = getSupabase();
+  if (sb && userState.userId) {
+    try {
+      await sb.from('accepted_quests').insert({
+        user_id: userState.userId,
+        quest_id: questId,
+      });
+      // Update profile
+      await sb.from('profiles').update({
+        quests_accepted: userState.questsAccepted + 1,
+      }).eq('id', userState.userId);
+    } catch (e) {
+      console.error('Failed to save accepted quest:', e);
+    }
+  }
+
+  // Update local state
   userState.acceptedQuests.push(questId);
   userState.questsAccepted++;
 
-  // Update title
   const newTitle = [...titleLevels].reverse().find(t => userState.questsAccepted >= t.min);
   if (newTitle) userState.title = newTitle.name;
   updateHeaderUser();
+
+  trackEvent('accept_quest', { quest_id: questId, quest_name: quest.title });
 
   // Animate
   const area = document.getElementById(`accept-area-${questId}`);
@@ -702,7 +1474,6 @@ function playAcceptSFX() {
     gain.gain.value = 0.12;
     gain.connect(ctx.destination);
 
-    // Triumphant chord: C major arpeggio up
     [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const env = ctx.createGain();
@@ -716,7 +1487,6 @@ function playAcceptSFX() {
       osc.stop(now + i * 0.1 + 0.5);
     });
 
-    // Final sustained chord
     [523.25, 659.25, 783.99].forEach(freq => {
       const osc = ctx.createOscillator();
       const env = ctx.createGain();
@@ -730,6 +1500,119 @@ function playAcceptSFX() {
       osc.stop(now + 1.6);
     });
   } catch (e) {}
+}
+
+/* ── CART FUNCTIONS (SHOPIFY) ── */
+async function addToCart(questId) {
+  const quest = quests.find(q => q.id === questId);
+  if (!quest || !quest.shopifyVariantId || !shopifyClient || !shopifyCheckout) return;
+
+  const btn = document.querySelector(`#accept-area-${questId} .btn-cart`);
+  if (btn) { btn.disabled = true; btn.textContent = 'カートに追加中...'; }
+
+  try {
+    const lineItems = [{ variantId: quest.shopifyVariantId, quantity: 1 }];
+    shopifyCheckout = await shopifyClient.checkout.addLineItems(shopifyCheckout.id, lineItems);
+    localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
+    updateCartBadge();
+    openCart();
+    trackEvent('add_to_cart', { item_id: questId, item_name: quest.title, price: quest.price });
+  } catch (e) {
+    console.error('Add to cart error:', e);
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'カートに追加する'; }
+}
+
+async function removeFromCart(lineItemId) {
+  if (!shopifyClient || !shopifyCheckout) return;
+  try {
+    shopifyCheckout = await shopifyClient.checkout.removeLineItems(shopifyCheckout.id, [lineItemId]);
+    localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
+    updateCartBadge();
+    renderCartDrawer();
+  } catch (e) {
+    console.error('Remove from cart error:', e);
+  }
+}
+
+async function updateCartQuantity(lineItemId, qty) {
+  if (!shopifyClient || !shopifyCheckout) return;
+  try {
+    if (qty <= 0) {
+      await removeFromCart(lineItemId);
+      return;
+    }
+    shopifyCheckout = await shopifyClient.checkout.updateLineItems(shopifyCheckout.id, [{ id: lineItemId, quantity: qty }]);
+    localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
+    updateCartBadge();
+    renderCartDrawer();
+  } catch (e) {
+    console.error('Update cart error:', e);
+  }
+}
+
+function proceedToCheckout() {
+  if (!shopifyCheckout || !shopifyCheckout.webUrl) return;
+  trackEvent('begin_checkout', { value: shopifyCheckout.totalPrice });
+  window.open(shopifyCheckout.webUrl, '_blank');
+}
+
+function updateCartBadge() {
+  const count = shopifyCheckout ? shopifyCheckout.lineItems.length : 0;
+  document.querySelectorAll('.cart-count').forEach(badge => {
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'flex' : 'none';
+  });
+}
+
+function renderCartDrawer() {
+  const itemsContainer = document.getElementById('cart-items');
+  const totalEl = document.getElementById('cart-total');
+  const checkoutBtn = document.getElementById('cart-checkout-btn');
+  if (!itemsContainer) return;
+
+  if (!shopifyCheckout || shopifyCheckout.lineItems.length === 0) {
+    itemsContainer.innerHTML = '<div class="cart-empty">カートは空です</div>';
+    if (totalEl) totalEl.textContent = '¥0';
+    if (checkoutBtn) checkoutBtn.disabled = true;
+    return;
+  }
+
+  itemsContainer.innerHTML = shopifyCheckout.lineItems.map(item => {
+    const imgSrc = item.variant?.image?.src || '';
+    return `
+      <div class="cart-item">
+        <div class="cart-item-image">
+          ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(item.title)}">` : '<div class="cart-item-placeholder">◆</div>'}
+        </div>
+        <div class="cart-item-info">
+          <div class="cart-item-title">${escapeHtml(item.title)}</div>
+          <div class="cart-item-price">¥${parseInt(item.variant.price.amount || item.variant.price).toLocaleString()}</div>
+          <div class="cart-item-qty">
+            <button onclick="updateCartQuantity('${item.id}', ${item.quantity - 1})" aria-label="数量を減らす">−</button>
+            <span>${item.quantity}</span>
+            <button onclick="updateCartQuantity('${item.id}', ${item.quantity + 1})" aria-label="数量を増やす">+</button>
+          </div>
+        </div>
+        <button class="cart-item-remove" onclick="removeFromCart('${item.id}')" aria-label="削除">✕</button>
+      </div>
+    `;
+  }).join('');
+
+  if (totalEl) totalEl.textContent = `¥${parseInt(shopifyCheckout.totalPrice.amount || shopifyCheckout.totalPrice).toLocaleString()}`;
+  if (checkoutBtn) checkoutBtn.disabled = false;
+}
+
+function openCart() {
+  renderCartDrawer();
+  document.getElementById('cart-overlay')?.classList.add('open');
+  document.getElementById('cart-drawer')?.classList.add('open');
+}
+
+function closeCart() {
+  document.getElementById('cart-overlay')?.classList.remove('open');
+  document.getElementById('cart-drawer')?.classList.remove('open');
 }
 
 /* ── RANKINGS ── */
@@ -837,7 +1720,7 @@ function renderRanking(tab = 'popular') {
 }
 
 /* ── MY PAGE ── */
-function renderMyPage() {
+async function renderMyPage() {
   const container = document.getElementById('mypage-content');
   const currentTitleIdx = titleLevels.findIndex(t => t.name === userState.title);
   const nextTitle = titleLevels[currentTitleIdx + 1];
@@ -845,11 +1728,50 @@ function renderMyPage() {
     ? ((userState.questsAccepted - titleLevels[currentTitleIdx].min) / (nextTitle.min - titleLevels[currentTitleIdx].min)) * 100
     : 100;
 
+  // Load order history
+  let ordersHtml = '';
+  const sb = getSupabase();
+  if (sb && userState.userId) {
+    try {
+      const { data: orders } = await sb
+        .from('orders')
+        .select('*')
+        .eq('user_id', userState.userId)
+        .order('created_at', { ascending: false });
+
+      if (orders && orders.length > 0) {
+        ordersHtml = `
+          <div class="mypage-section-title">注文履歴</div>
+          <div class="order-history-list">
+            ${orders.map(o => {
+              const statusLabel = { pending: '処理中', paid: '支払済', shipped: '発送済', delivered: '配達完了', cancelled: 'キャンセル' }[o.status] || o.status;
+              const statusClass = { pending: 'processing', paid: 'paid', shipped: 'shipping', delivered: 'delivered', cancelled: 'cancelled' }[o.status] || '';
+              return `
+                <div class="order-item">
+                  <div class="order-item-header">
+                    <span class="order-number">注文 #${escapeHtml(o.shopify_order_number || o.shopify_order_id)}</span>
+                    <span class="order-status ${statusClass}">${statusLabel}</span>
+                  </div>
+                  <div class="order-item-body">
+                    <div class="order-total">¥${o.total_price.toLocaleString()}</div>
+                    <div class="order-date">${new Date(o.created_at).toLocaleDateString('ja-JP')}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }
+    } catch (e) {
+      console.error('Failed to load orders:', e);
+    }
+  }
+
   container.innerHTML = `
     <div class="mypage-profile">
       <div class="mypage-avatar">${userState.avatar}</div>
       <div class="mypage-info">
-        <div class="mypage-name">${userState.name}</div>
+        <div class="mypage-name">${escapeHtml(userState.name)}</div>
         <div class="mypage-title">${userState.title}</div>
         <div class="mypage-stats-row">
           <div class="mypage-stat-item">
@@ -889,6 +1811,7 @@ function renderMyPage() {
         ${userState.acceptedQuests.map(qid => {
           const q = quests.find(quest => quest.id === qid);
           if (!q) return '';
+          const hasReview = userState.reviewedQuests.includes(qid);
           return `
             <div class="my-quest-item" onclick="openQuestDetail(${q.id})">
               <div class="my-quest-thumb">
@@ -896,9 +1819,14 @@ function renderMyPage() {
               </div>
               <div class="my-quest-info">
                 <div class="my-quest-title">${q.title}</div>
-                <span class="my-quest-status shipping">発送準備中</span>
+                <div class="my-quest-badges">
+                  <span class="my-quest-status shipping">発送準備中</span>
+                  ${hasReview
+                    ? '<span class="my-quest-review-badge reviewed">報告書 提出済</span>'
+                    : '<span class="my-quest-review-badge unreview">報告書 未提出</span>'}
+                </div>
               </div>
-              <div class="my-quest-date">受注日: 今日</div>
+              <div class="my-quest-date">受注済み</div>
             </div>
           `;
         }).join('')}
@@ -910,18 +1838,223 @@ function renderMyPage() {
         <button class="btn-outline" onclick="navigateTo('quest-board')">クエスト一覧を見る →</button>
       </div>
     `}
+
+    ${ordersHtml}
+
+    <div class="mypage-actions">
+      <button class="btn-logout" onclick="handleLogout()" aria-label="ログアウト">ログアウト</button>
+    </div>
   `;
 }
 
+/* ── LEGAL PAGES ── */
+function renderLegalPage(type) {
+  const container = document.getElementById(`${type}-content`);
+  if (!container) return;
+
+  const content = {
+    terms: `
+      <h2>利用規約</h2>
+      <p class="legal-updated">最終更新日: 2026年3月1日</p>
+
+      <h3>第1条（適用）</h3>
+      <p>本利用規約（以下「本規約」）は、リアクエ REAL QUEST（以下「当サービス」）の利用条件を定めるものです。登録ユーザーの皆さまには、本規約に従って本サービスをご利用いただきます。</p>
+
+      <h3>第2条（利用登録）</h3>
+      <p>登録希望者が当サービスの定める方法によって利用登録を申請し、当サービスがこれを承認することによって、利用登録が完了するものとします。</p>
+
+      <h3>第3条（ユーザーIDおよびパスワードの管理）</h3>
+      <p>ユーザーは、自己の責任において、本サービスのユーザーIDおよびパスワードを適切に管理するものとします。</p>
+
+      <h3>第4条（禁止事項）</h3>
+      <p>ユーザーは、本サービスの利用にあたり、以下の行為をしてはなりません。</p>
+      <ul>
+        <li>法令または公序良俗に違反する行為</li>
+        <li>犯罪行為に関連する行為</li>
+        <li>当サービスの他のユーザーまたは第三者の知的財産権、肖像権、プライバシー等を侵害する行為</li>
+        <li>当サービスのサーバーまたはネットワークの機能を破壊したり妨害したりする行為</li>
+        <li>当サービスの運営を妨害するおそれのある行為</li>
+        <li>クエスト内容のネタバレを不特定多数に公開する行為</li>
+      </ul>
+
+      <h3>第5条（商品の購入）</h3>
+      <p>ユーザーは、当サービスを通じてクエスト商品を購入することができます。商品の購入に際しては、Shopifyを通じた決済が行われます。</p>
+
+      <h3>第6条（返品・交換）</h3>
+      <p>商品の性質上（謎解きコンテンツの特性）、開封後の返品はお受けできません。未開封の場合は、商品到着後7日以内にお問い合わせください。不良品の場合は速やかに交換対応いたします。</p>
+
+      <h3>第7条（免責事項）</h3>
+      <p>当サービスは、本サービスに事実上または法律上の瑕疵がないことを明示的にも黙示的にも保証しておりません。</p>
+
+      <h3>第8条（サービス内容の変更等）</h3>
+      <p>当サービスは、ユーザーに通知することなく、本サービスの内容を変更しまたは本サービスの提供を中止することができるものとし、これによってユーザーに生じた損害について一切の責任を負いません。</p>
+    `,
+    privacy: `
+      <h2>プライバシーポリシー</h2>
+      <p class="legal-updated">最終更新日: 2026年3月1日</p>
+
+      <h3>1. 収集する情報</h3>
+      <p>当サービスは、以下の情報を収集します。</p>
+      <ul>
+        <li>メールアドレス（アカウント登録時）</li>
+        <li>表示名（任意設定）</li>
+        <li>配送先住所（商品購入時、Shopify経由）</li>
+        <li>決済情報（商品購入時、Shopify経由で処理。当サービスでは保存しません）</li>
+        <li>サービス利用履歴（クエスト受諾、レビュー投稿等）</li>
+        <li>アクセスログ（Google Analytics 4を使用）</li>
+      </ul>
+
+      <h3>2. 情報の利用目的</h3>
+      <ul>
+        <li>サービスの提供・運営</li>
+        <li>商品の配送</li>
+        <li>お問い合わせへの対応</li>
+        <li>サービスの改善・新機能開発</li>
+        <li>利用状況の分析</li>
+      </ul>
+
+      <h3>3. 第三者への提供</h3>
+      <p>当サービスは、以下の場合を除き、収集した個人情報を第三者に提供しません。</p>
+      <ul>
+        <li>ユーザーの同意がある場合</li>
+        <li>法令に基づく場合</li>
+        <li>商品配送のために配送業者に必要最低限の情報を提供する場合</li>
+      </ul>
+
+      <h3>4. 外部サービス</h3>
+      <p>当サービスでは以下の外部サービスを利用しています。</p>
+      <ul>
+        <li>Supabase（認証・データベース）</li>
+        <li>Shopify（決済・配送管理）</li>
+        <li>Google Analytics 4（アクセス解析）</li>
+      </ul>
+
+      <h3>5. データの保護</h3>
+      <p>当サービスは、収集した情報の漏えい、滅失またはき損の防止のために、適切なセキュリティ対策を実施します。</p>
+
+      <h3>6. お問い合わせ</h3>
+      <p>プライバシーに関するお問い合わせは、お問い合わせフォームよりご連絡ください。</p>
+    `,
+    tokushoho: `
+      <h2>特定商取引法に基づく表記</h2>
+      <p class="legal-updated">最終更新日: 2026年3月1日</p>
+
+      <table class="legal-table">
+        <tr><th>販売事業者</th><td>リアクエ REAL QUEST 運営事務局</td></tr>
+        <tr><th>代表者</th><td>※ 要設定</td></tr>
+        <tr><th>所在地</th><td>※ 要設定</td></tr>
+        <tr><th>電話番号</th><td>※ 要設定（お問い合わせフォームをご利用ください）</td></tr>
+        <tr><th>メールアドレス</th><td>※ 要設定</td></tr>
+        <tr><th>販売URL</th><td>https://moedesu1.github.io/realquest-demo/a-rpg/</td></tr>
+        <tr><th>販売価格</th><td>各商品ページに記載（税込表示）</td></tr>
+        <tr><th>送料</th><td>全商品送料込み</td></tr>
+        <tr><th>商品代金以外の必要料金</th><td>なし</td></tr>
+        <tr><th>支払方法</th><td>クレジットカード（Shopify経由）</td></tr>
+        <tr><th>支払時期</th><td>注文時に即時決済</td></tr>
+        <tr><th>商品の引渡し時期</th><td>受注後3〜5営業日以内に発送</td></tr>
+        <tr><th>返品・交換について</th><td>商品の性質上、開封後の返品不可。未開封の場合は商品到着後7日以内。不良品は速やかに交換対応。</td></tr>
+      </table>
+    `,
+  };
+
+  container.innerHTML = content[type] || '';
+}
+
+/* ── CONTACT FORM ── */
+async function handleContactSubmit(e) {
+  e.preventDefault();
+  const name = document.getElementById('contact-name').value.trim();
+  const email = document.getElementById('contact-email').value.trim();
+  const category = document.getElementById('contact-category').value;
+  const message = document.getElementById('contact-message').value.trim();
+  const errorEl = document.getElementById('contact-error');
+  const successEl = document.getElementById('contact-success');
+  const submitBtn = document.getElementById('contact-submit-btn');
+
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  if (!name || !email || !category || !message) {
+    errorEl.textContent = '全ての項目を入力してください。';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = '送信中...';
+
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      const { error } = await sb.from('contact_submissions').insert({ name, email, category, message });
+      if (error) throw error;
+
+      // Trigger email notification via Edge Function (fire-and-forget)
+      sb.functions.invoke('send-contact-email', {
+        body: { name, email, category, message },
+      }).catch(e => console.log('Email notification skipped:', e.message));
+    } catch (err) {
+      errorEl.textContent = '送信に失敗しました。もう一度お試しください。';
+      errorEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = '送信する';
+      return;
+    }
+  } else {
+    errorEl.textContent = 'サービスに接続できません。しばらく経ってからお試しください。';
+    errorEl.style.display = 'block';
+    submitBtn.disabled = false;
+    submitBtn.textContent = '送信する';
+    return;
+  }
+
+  trackEvent('contact_submit', { category });
+  successEl.textContent = 'お問い合わせを受け付けました。確認後、ご連絡いたします。';
+  successEl.style.display = 'block';
+  e.target.reset();
+  submitBtn.disabled = false;
+  submitBtn.textContent = '送信する';
+}
+
 /* ── REVIEW LIKE ── */
-function toggleLike(btn, questId, reviewIdx) {
-  btn.classList.toggle('liked');
+async function toggleLike(btn, questId, reviewIdx) {
   const quest = quests.find(q => q.id === questId);
   if (!quest || !quest.reviews[reviewIdx]) return;
-  const isLiked = btn.classList.contains('liked');
-  if (isLiked) quest.reviews[reviewIdx].likes++;
-  else quest.reviews[reviewIdx].likes--;
-  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> ${quest.reviews[reviewIdx].likes}`;
+
+  const review = quest.reviews[reviewIdx];
+  const reviewId = review.reviewId;
+  const sb = getSupabase();
+  const isCurrentlyLiked = btn.classList.contains('liked');
+
+  // Optimistic UI update
+  btn.classList.toggle('liked');
+  if (isCurrentlyLiked) review.likes = Math.max(0, review.likes - 1);
+  else review.likes++;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="${isCurrentlyLiked ? 'none' : 'currentColor'}" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> ${review.likes}`;
+
+  // Persist to Supabase
+  if (sb && userState.userId && reviewId) {
+    try {
+      if (isCurrentlyLiked) {
+        // Remove like
+        await sb.from('review_likes')
+          .delete()
+          .eq('review_id', reviewId)
+          .eq('user_id', userState.userId);
+      } else {
+        // Add like
+        await sb.from('review_likes')
+          .insert({ review_id: reviewId, user_id: userState.userId });
+      }
+    } catch (e) {
+      // Revert on error
+      console.error('Like toggle error:', e);
+      btn.classList.toggle('liked');
+      if (isCurrentlyLiked) review.likes++;
+      else review.likes = Math.max(0, review.likes - 1);
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> ${review.likes}`;
+    }
+  }
 }
 
 /* ── MOBILE MENU ── */
@@ -953,12 +2086,11 @@ function scheduleBGMLoop() {
   master.gain.value = 0.06;
   master.connect(ctx.destination);
 
-  // Ambient pad chord
   const chords = [
-    [261.63, 329.63, 392.00], // C major
-    [293.66, 369.99, 440.00], // D major
-    [246.94, 311.13, 369.99], // B minor
-    [261.63, 329.63, 392.00], // C major
+    [261.63, 329.63, 392.00],
+    [293.66, 369.99, 440.00],
+    [246.94, 311.13, 369.99],
+    [261.63, 329.63, 392.00],
   ];
 
   const chordDur = 4;
@@ -979,7 +2111,6 @@ function scheduleBGMLoop() {
       osc.stop(t + chordDur);
     });
 
-    // Melody note on top
     const melodyFreqs = [523.25, 587.33, 493.88, 523.25];
     const osc = ctx.createOscillator();
     const env = ctx.createGain();
@@ -995,7 +2126,6 @@ function scheduleBGMLoop() {
     osc.stop(t + 2.5);
   });
 
-  // Schedule next loop
   const totalDur = chords.length * chordDur;
   bgmInterval = setTimeout(() => scheduleBGMLoop(), totalDur * 1000);
 }
@@ -1087,17 +2217,6 @@ function playStartSFX() {
 })();
 
 /* ── INIT ── */
-// Rankings page: render on navigate
-const origNavigate = navigateTo;
-const _navigateTo = navigateTo;
-// Monkey-patch navigateTo to trigger page-specific renders
-const _origOnShow = {};
-(function patchNavigation() {
-  const original = window.navigateTo;
-  // We'll handle onShow callbacks per page type instead
-})();
-
-// Override navigateTo to add page-specific init
 const __navigateTo = navigateTo;
 navigateTo = function(pageId, options = {}) {
   const origOnShow = options.onShow;
@@ -1105,6 +2224,65 @@ navigateTo = function(pageId, options = {}) {
     if (origOnShow) origOnShow();
     if (pageId === 'rankings') renderRanking('popular');
     if (pageId === 'mypage') renderMyPage();
+    if (['terms', 'privacy', 'tokushoho'].includes(pageId)) renderLegalPage(pageId);
   };
   __navigateTo(pageId, options);
 };
+
+/* ── AUTH STATE LISTENER ── */
+(async function initApp() {
+  // Init GA4
+  if (GA4_ID && GA4_ID !== 'G-XXXXXXXXXX') {
+    const gaScript = document.createElement('script');
+    gaScript.async = true;
+    gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`;
+    document.head.appendChild(gaScript);
+    gtag('config', GA4_ID);
+  }
+
+  // Init Shopify
+  initShopify();
+
+  const sb = getSupabase();
+  if (!sb) return;
+
+  let initialNavDone = false;
+
+  // Listen for auth state changes (handles INITIAL_SESSION, SIGNED_IN, SIGNED_OUT)
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (session && session.user) {
+      // Prevent double-navigation (INITIAL_SESSION + getSession race)
+      if (initialNavDone) {
+        updateHeaderUser();
+        return;
+      }
+      initialNavDone = true;
+
+      userState.loggedIn = true;
+      userState.userId = session.user.id;
+      userState.role = 'adventurer';
+
+      await loadUserProfile(session.user.id);
+      await loadQuestsFromDB();
+
+      if (currentPage === 'opening') {
+        playStartSFX();
+        setTimeout(() => startBGM(), 300);
+        navigateTo('quest-board', {
+          transitionText: event === 'INITIAL_SESSION' ? 'セッションを復元しています...' : 'ギルド掲示板を開いています...',
+          delay: event === 'INITIAL_SESSION' ? 800 : 1200,
+          onShow: () => {
+            renderQuestCards(quests);
+            updateHeaderUser();
+          }
+        });
+      } else {
+        updateHeaderUser();
+      }
+    } else if (event === 'SIGNED_OUT') {
+      initialNavDone = false;
+      userState.loggedIn = false;
+      userState.userId = null;
+    }
+  });
+})();

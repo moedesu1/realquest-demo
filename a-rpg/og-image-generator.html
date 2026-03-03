@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>OG Image Generator — リアクエ</title>
+<style>
+  body { margin: 0; background: #000; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  #og-canvas { border: 1px solid #333; }
+  .controls { position: fixed; top: 10px; right: 10px; background: #222; padding: 16px; border-radius: 8px; color: #fff; font-family: sans-serif; }
+  .controls button { padding: 8px 16px; background: #d4a340; color: #1a140e; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+<canvas id="og-canvas" width="1200" height="630"></canvas>
+<div class="controls">
+  <p>1200x630 OG Image</p>
+  <button onclick="downloadImage()">Download PNG</button>
+  <p style="font-size:12px;color:#888;margin-top:8px;">
+    ダウンロード後、WebPに変換して<br>
+    images/og-image.webp に配置してください
+  </p>
+</div>
+
+<script>
+const canvas = document.getElementById('og-canvas');
+const ctx = canvas.getContext('2d');
+
+function draw() {
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, 0, 630);
+  grad.addColorStop(0, '#1a140e');
+  grad.addColorStop(0.5, '#241c14');
+  grad.addColorStop(1, '#1a140e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  // Border
+  ctx.strokeStyle = '#d4a340';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(30, 30, 1140, 570);
+
+  // Inner border
+  ctx.strokeStyle = 'rgba(212,163,64,0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(40, 40, 1120, 550);
+
+  // Corner ornaments
+  const corners = [[50, 50], [1150, 50], [50, 580], [1150, 580]];
+  ctx.fillStyle = '#d4a340';
+  corners.forEach(([x, y]) => {
+    ctx.font = '24px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('◆', x, y + 8);
+  });
+
+  // Particles (decorative dots)
+  for (let i = 0; i < 50; i++) {
+    const x = 60 + Math.random() * 1080;
+    const y = 60 + Math.random() * 510;
+    const r = Math.random() * 2 + 0.5;
+    const a = Math.random() * 0.2 + 0.05;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,215,0,${a})`;
+    ctx.fill();
+  }
+
+  // Guild label
+  ctx.font = '18px monospace';
+  ctx.fillStyle = 'rgba(212,163,64,0.6)';
+  ctx.textAlign = 'center';
+  ctx.letterSpacing = '8px';
+  ctx.fillText('— ADVENTURERS GUILD —', 600, 180);
+
+  // Title - リアクエ
+  ctx.font = 'bold 72px "Noto Sans JP", sans-serif';
+  ctx.fillStyle = '#f0e0c8';
+  ctx.textAlign = 'center';
+  ctx.fillText('リアクエ', 600, 280);
+
+  // Subtitle - REAL QUEST
+  ctx.font = '28px monospace';
+  ctx.fillStyle = '#d4a340';
+  ctx.fillText('REAL QUEST', 600, 330);
+
+  // Divider
+  ctx.strokeStyle = 'rgba(212,163,64,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(400, 360);
+  ctx.lineTo(800, 360);
+  ctx.stroke();
+  ctx.fillStyle = '#d4a340';
+  ctx.font = '16px serif';
+  ctx.fillText('◆', 600, 365);
+
+  // Tagline
+  ctx.font = '24px "Noto Sans JP", sans-serif';
+  ctx.fillStyle = '#c8b090';
+  ctx.fillText('日常が、クエストになる。', 600, 420);
+
+  // Description
+  ctx.font = '16px "Noto Sans JP", sans-serif';
+  ctx.fillStyle = '#8a7a60';
+  ctx.fillText('物語アイテムが届き、現実がクエストフィールドになる', 600, 470);
+  ctx.fillText('リアルRPGクエスト販売プラットフォーム', 600, 500);
+
+  // Bottom URL
+  ctx.font = '14px monospace';
+  ctx.fillStyle = 'rgba(212,163,64,0.5)';
+  ctx.fillText('realquest.jp', 600, 570);
+}
+
+draw();
+
+function downloadImage() {
+  const link = document.createElement('a');
+  link.download = 'og-image.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+</script>
+</body>
+</html>
