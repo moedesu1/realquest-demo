@@ -1101,6 +1101,50 @@ function renderRanking(tab = 'popular') {
 /* ── MY PAGE ── */
 function renderMyPage() {
   const container = document.getElementById('mypage-content');
+
+  // Not logged in with Supabase → show auth form
+  if (supabase && !userState.loggedIn) {
+    container.innerHTML = `
+      <div class="mypage-auth-wrapper">
+        <div class="mypage-auth-title">冒険者ギルド — ログイン</div>
+        <div class="auth-container" style="opacity:1;">
+          <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchAuthTab('login')">ログイン</button>
+            <button class="auth-tab" onclick="switchAuthTab('signup')">新規登録</button>
+          </div>
+          <form class="auth-form" onsubmit="handleAuth(event)">
+            <div class="auth-field" id="auth-name-field" style="display:none">
+              <input type="text" id="auth-name" placeholder="冒険者名" autocomplete="name">
+            </div>
+            <div class="auth-field">
+              <input type="email" id="auth-email" placeholder="メールアドレス" required autocomplete="email">
+            </div>
+            <div class="auth-field">
+              <input type="password" id="auth-password" placeholder="パスワード（6文字以上）" required minlength="6" autocomplete="current-password">
+            </div>
+            <div class="auth-error" id="auth-error"></div>
+            <button type="submit" class="btn-login btn-adventurer" id="auth-submit-btn">
+              <span id="auth-submit-text">ログイン</span>
+            </button>
+          </form>
+          <div class="auth-links">
+            <button class="auth-link" onclick="showPasswordReset()">パスワードを忘れた方</button>
+          </div>
+          <div class="auth-reset-form" id="auth-reset-form" style="display:none">
+            <p class="auth-reset-desc">登録メールアドレスにリセットリンクを送信します</p>
+            <div class="auth-field">
+              <input type="email" id="reset-email" placeholder="メールアドレス" required>
+            </div>
+            <div class="auth-error" id="reset-error"></div>
+            <button class="btn-login btn-adventurer" onclick="handlePasswordReset()">リセットリンクを送信</button>
+            <button class="auth-link" onclick="backToLogin()" style="margin-top:0.5rem">← ログインに戻る</button>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   const currentTitleIdx = titleLevels.findIndex(t => t.name === userState.title);
   const nextTitle = titleLevels[currentTitleIdx + 1];
   const progress = nextTitle
@@ -1158,11 +1202,9 @@ function renderMyPage() {
       </div>
     `}
 
-    ${userState.loggedIn ? `
-      <div style="margin-top:2rem; text-align:center;">
-        <button class="btn-outline" onclick="handleLogout()" style="color:var(--accent-red); border-color:var(--accent-red);">ログアウト</button>
-      </div>
-    ` : ''}
+    <div style="margin-top:2rem; text-align:center;">
+      <button class="btn-outline" onclick="handleLogout()" style="color:var(--accent-red); border-color:var(--accent-red);">ログアウト</button>
+    </div>
   `;
 }
 

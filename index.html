@@ -73,44 +73,12 @@
 
     <div class="logo-tagline">日常が、<span>クエスト</span>になる</div>
 
-    <!-- Auth Form -->
-    <div class="auth-container" id="auth-container">
-      <div class="auth-tabs">
-        <button class="auth-tab active" onclick="switchAuthTab('login')">ログイン</button>
-        <button class="auth-tab" onclick="switchAuthTab('signup')">新規登録</button>
-      </div>
-      <form class="auth-form" onsubmit="handleAuth(event)">
-        <div class="auth-field" id="auth-name-field" style="display:none">
-          <input type="text" id="auth-name" placeholder="冒険者名" autocomplete="name">
-        </div>
-        <div class="auth-field">
-          <input type="email" id="auth-email" placeholder="メールアドレス" required autocomplete="email">
-        </div>
-        <div class="auth-field">
-          <input type="password" id="auth-password" placeholder="パスワード（6文字以上）" required minlength="6" autocomplete="current-password">
-        </div>
-        <div class="auth-error" id="auth-error"></div>
-        <button type="submit" class="btn-login btn-adventurer" id="auth-submit-btn">
-          <span class="btn-login-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88"/></svg></span>
-          <span id="auth-submit-text">冒険者としてログイン</span>
-        </button>
-      </form>
-      <div class="auth-links">
-        <button class="auth-link" onclick="showPasswordReset()">パスワードを忘れた方</button>
-      </div>
-      <!-- Password Reset Form -->
-      <div class="auth-reset-form" id="auth-reset-form" style="display:none">
-        <p class="auth-reset-desc">登録メールアドレスにリセットリンクを送信します</p>
-        <div class="auth-field">
-          <input type="email" id="reset-email" placeholder="メールアドレス" required>
-        </div>
-        <div class="auth-error" id="reset-error"></div>
-        <button class="btn-login btn-adventurer" onclick="handlePasswordReset()">リセットリンクを送信</button>
-        <button class="auth-link" onclick="backToLogin()" style="margin-top:0.5rem">← ログインに戻る</button>
-      </div>
-    </div>
-    <!-- Creator login -->
-    <div style="margin-top:0.8rem; opacity:0; animation: fadeUp 0.8s var(--ease-out-expo) 2.2s forwards;">
+    <!-- Login buttons — two roles -->
+    <div class="login-buttons">
+      <button class="btn-login btn-adventurer" onclick="loginAsAdventurer()">
+        <span class="btn-login-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88"/></svg></span>
+        <span>冒険者としてログイン</span>
+      </button>
       <button class="btn-login btn-creator" onclick="loginAsCreator()">
         <span class="btn-login-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
         <span>創造者としてログイン</span>

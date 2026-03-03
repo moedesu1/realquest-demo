@@ -1369,6 +1369,16 @@ input, select { font-family: inherit; }
   text-align: center;
 }
 
+/* --- MYPAGE AUTH WRAPPER --- */
+.mypage-auth-wrapper {
+  max-width: 420px; margin: 3rem auto; padding: 0 1rem;
+}
+.mypage-auth-title {
+  font-family: var(--pixel-font);
+  font-size: 1rem; color: var(--neon-gold);
+  text-align: center; margin-bottom: 1.5rem;
+}
+
 /* --- CART BUTTON (HEADER) --- */
 .header-cart-btn {
   position: relative; display: flex; align-items: center;
