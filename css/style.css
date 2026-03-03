@@ -108,7 +108,7 @@ input, select { font-family: inherit; }
 #page-opening {
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-end;
-  padding: 2rem 1rem 18vh; background: #000; z-index: 10;
+  padding: 2rem 1rem 12vh; background: #000; z-index: 10;
 }
 .opening-bg {
   position: fixed; inset: -5%; width: 110%; height: 110%;
