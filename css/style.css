@@ -1369,6 +1369,14 @@ input, select { font-family: inherit; }
   text-align: center;
 }
 
+/* --- OPENING MINIMAL (buttons only) --- */
+.opening-content--minimal {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
 /* --- MYPAGE AUTH WRAPPER --- */
 .mypage-auth-wrapper {
   max-width: 420px; margin: 3rem auto; padding: 0 1rem;
