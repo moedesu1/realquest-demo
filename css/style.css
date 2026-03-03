@@ -113,10 +113,9 @@ input, select { font-family: inherit; }
 
 .opening-bg {
   position: fixed; inset: 0; width: 100%; height: 100%;
-  background: url('../images/bg-rpg-portal.png') center/cover no-repeat;
+  background: url('../images/bg-opening-hero.png') center/cover no-repeat;
   z-index: 0; opacity: 0;
   animation: bgFadeIn 1.5s ease forwards;
-  image-rendering: pixelated;
 }
 @keyframes bgFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
