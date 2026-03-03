@@ -1375,6 +1375,10 @@ input, select { font-family: inherit; }
   border: none !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
+  padding: 0 !important;
+}
+.opening-content--minimal .login-buttons {
+  background: none;
 }
 
 /* --- MYPAGE AUTH WRAPPER --- */
