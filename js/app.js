@@ -1,60 +1,48 @@
 /* ============================================================
-   REAL QUEST — App v3
-   Production: Supabase Auth + DB + Shopify Cart + Analytics
+   REAL QUEST — App v2 + Production Integration
+   Original Design + Supabase Auth/DB + Shopify Cart
    ============================================================ */
 
-/* ── CONFIG (from js/config.js) ── */
-const SUPABASE_URL = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.SUPABASE_URL) || 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.SUPABASE_ANON_KEY) || 'YOUR_SUPABASE_ANON_KEY';
-const SHOPIFY_DOMAIN = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.SHOPIFY_DOMAIN) || 'YOUR_STORE.myshopify.com';
-const SHOPIFY_STOREFRONT_TOKEN = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.SHOPIFY_STOREFRONT_TOKEN) || 'YOUR_STOREFRONT_ACCESS_TOKEN';
-const GA4_ID = (typeof RQ_CONFIG !== 'undefined' && RQ_CONFIG.GA4_ID) || 'G-XXXXXXXXXX';
-
 /* ── SUPABASE CLIENT ── */
-let supabaseClient = null;
-function getSupabase() {
-  if (!supabaseClient && window.supabase) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabase = null;
+try {
+  if (typeof window.supabase !== 'undefined' && RQ_CONFIG.SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+    supabase = window.supabase.createClient(RQ_CONFIG.SUPABASE_URL, RQ_CONFIG.SUPABASE_ANON_KEY);
   }
-  return supabaseClient;
-}
+} catch (e) { /* SDK not loaded or config not set */ }
 
 /* ── SHOPIFY CLIENT ── */
 let shopifyClient = null;
 let shopifyCheckout = null;
 
 async function initShopify() {
-  if (!window.ShopifyBuy) return;
   try {
+    if (typeof ShopifyBuy === 'undefined' || RQ_CONFIG.SHOPIFY_DOMAIN === 'YOUR_STORE.myshopify.com') return;
     shopifyClient = ShopifyBuy.buildClient({
-      domain: SHOPIFY_DOMAIN,
-      storefrontAccessToken: SHOPIFY_STOREFRONT_TOKEN,
+      domain: RQ_CONFIG.SHOPIFY_DOMAIN,
+      storefrontAccessToken: RQ_CONFIG.SHOPIFY_STOREFRONT_TOKEN,
     });
-    // Restore or create checkout
     const savedCheckoutId = localStorage.getItem('rq_checkout_id');
     if (savedCheckoutId) {
       try {
         shopifyCheckout = await shopifyClient.checkout.fetch(savedCheckoutId);
-        if (shopifyCheckout.completedAt) {
-          shopifyCheckout = await shopifyClient.checkout.create();
-          localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
-        }
-      } catch {
-        shopifyCheckout = await shopifyClient.checkout.create();
-        localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
-      }
+        if (shopifyCheckout.completedAt) { shopifyCheckout = await shopifyClient.checkout.create(); localStorage.setItem('rq_checkout_id', shopifyCheckout.id); }
+      } catch { shopifyCheckout = await shopifyClient.checkout.create(); localStorage.setItem('rq_checkout_id', shopifyCheckout.id); }
     } else {
       shopifyCheckout = await shopifyClient.checkout.create();
       localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
     }
     updateCartBadge();
-  } catch (e) {
-    console.error('Shopify init error:', e);
-  }
+  } catch (e) { console.warn('Shopify init skipped:', e.message); }
 }
 
-/* ── FALLBACK QUEST DATA ── */
-const fallbackQuests = [
+/* ── GA4 TRACKING ── */
+function trackEvent(name, params = {}) {
+  if (typeof gtag === 'function') gtag('event', name, params);
+}
+
+/* ── QUEST DATA (fallback) ── */
+let quests = [
   {
     id: 1,
     title: '大阪怪奇事件ファイル',
@@ -71,7 +59,6 @@ const fallbackQuests = [
     estimatedTime: '2〜4時間',
     players: '1〜3人',
     region: '自宅完結',
-    purposes: ['puzzle', 'home'],
     items: [
       { icon: '◆', name: '捜査資料ファイル（証拠写真・調書入り）' },
       { icon: '◆', name: '謎の鍵（金属製）' },
@@ -79,6 +66,7 @@ const fallbackQuests = [
     ],
     prologue: '大阪で起きた連続怪奇事件——目撃者の証言は矛盾だらけ、現場には説明のつかない痕跡が残されていた。捜査本部がギルドに依頼した資料一式があなたの元に届く。封筒の中の鍵は、何を開けるためのものなのか。真相は、証拠の中に隠されている。',
     cautions: ['ネタバレ禁止', '筆記用具をご用意ください', '対象年齢: 12歳以上'],
+    purposes: ['puzzle', 'home'],
     reviews: [
       { user: '黒鉄の剣士', title: '冒険者', avatar: '黒', level: 28, rank: 'C', stars: 5, date: '2026.02.15', text: '捜査資料のリアルさに驚いた。証拠写真を並べて推理する過程が本格的で没入感がすごい。家族3人で挑んで3時間で解決。鍵のギミックが特に秀逸！', sub: { craft: 5, story: 4, volume: 4 }, likes: 12 },
       { user: '月影の魔女', title: '勇者', avatar: '月', level: 45, rank: 'B', stars: 4, date: '2026.02.10', text: '調書の作り込みが凝っていて感動。もう少しヒントがあると初心者にも優しいかも。最後の真相に辿り着いた時の達成感が最高でした。', sub: { craft: 5, story: 4, volume: 3 }, likes: 8 },
@@ -104,7 +92,6 @@ const fallbackQuests = [
     estimatedTime: '3〜5時間',
     players: '1〜4人',
     region: '奈良',
-    purposes: ['puzzle', 'outdoor'],
     items: [
       { icon: '◆', name: '古びた手紙（暗号入り）' },
       { icon: '◆', name: '木札（ヒント刻印入り）' },
@@ -112,6 +99,7 @@ const fallbackQuests = [
     ],
     prologue: '奈良公園の鹿が一頭、忽然と姿を消した。ただの迷子ではない——その鹿は、千年前から受け継がれてきた「神鹿」だった。古びた手紙に記された暗号を解けば、消えた鹿の行方と、古都に隠された秘密に辿り着ける。',
     cautions: ['ネタバレ禁止', '現地ステージあり（奈良市内）', '歩きやすい服装推奨', '対象年齢: 12歳以上'],
+    purposes: ['puzzle', 'outdoor'],
     reviews: [
       { user: '星読みの賢者', title: '冒険者', avatar: '星', level: 33, rank: 'C', stars: 5, date: '2026.02.12', text: '奈良の街を歩きながら暗号を解く体験は格別。木札のギミックが面白くて、観光としても楽しめる。歴史の知識が自然と身につくのもいい。', sub: { craft: 5, story: 5, volume: 3 }, likes: 15 },
       { user: '森の狩人', title: '見習い', avatar: '森', level: 8, rank: 'E', stars: 4, date: '2026.02.01', text: 'カップルでやったら最高。古びた手紙の質感がリアルで、開封する瞬間のドキドキ感がいい。初めてのリアクエだったけど、すっかりハマりました。', sub: { craft: 4, story: 5, volume: 3 }, likes: 7 },
@@ -136,13 +124,13 @@ const fallbackQuests = [
     estimatedTime: '1〜2時間',
     players: '1人',
     region: '自宅完結',
-    purposes: ['puzzle', 'home'],
     items: [
       { icon: '◆', name: '古い携帯電話本体（ギミック内蔵）' },
       { icon: '◆', name: 'ギルドからの依頼書' },
     ],
     prologue: 'リサイクルショップで見つかった古い携帯電話。電源を入れると、下書きフォルダに未送信のメッセージが残されていた。誰が、誰に、何を伝えようとしていたのか——。携帯に残された手がかりから、10年前の想いを紐解け。',
     cautions: ['ネタバレ禁止', '対象年齢: 10歳以上'],
+    purposes: ['puzzle', 'home'],
     reviews: [
       { user: '古代の探究者', title: '勇者', avatar: '古', level: 52, rank: 'B', stars: 5, date: '2026.02.20', text: '携帯電話が本物みたいで驚いた。メッセージを一つずつ読み解いていく過程に感動。最後のメッセージの内容に泣きました。', sub: { craft: 5, story: 5, volume: 2 }, likes: 23 },
     ],
@@ -166,13 +154,13 @@ const fallbackQuests = [
     estimatedTime: '2〜3時間',
     players: '1〜2人',
     region: '自宅完結',
-    purposes: ['puzzle', 'home'],
     items: [
       { icon: '◆', name: '誰かの財布（レシートや身分証入り）' },
       { icon: '◆', name: 'ギルドからの依頼書' },
     ],
     prologue: 'ギルドに届けられた落とし物——誰かの財布。中にはレシート、身分証、メモ、写真が入っている。持ち主を探すだけの簡単な依頼のはずだった。だが中身を調べるうちに、この財布が「落とされた」のではなく「残された」ものだと気づく。',
     cautions: ['ネタバレ禁止', '筆記用具をご用意ください', '対象年齢: 12歳以上'],
+    purposes: ['puzzle', 'home'],
     reviews: [
       { user: '鉄壁の騎士', title: '冒険者', avatar: '鉄', level: 22, rank: 'D', stars: 4, date: '2026.01.25', text: 'レシートや身分証のリアルさに驚いた。推理していくうちにゾクッとする展開が待っていた。日常の中に潜む謎というコンセプトが新鮮。', sub: { craft: 4, story: 5, volume: 3 }, likes: 9 },
       { user: '風の吟遊詩人', title: '見習い', avatar: '風', level: 5, rank: 'E', stars: 5, date: '2026.01.18', text: 'リアルな小道具の作り込みが素晴らしい！レシートの日付や店名まで手がかりになっているのが面白い。推理好きには絶対おすすめ。', sub: { craft: 5, story: 5, volume: 3 }, likes: 6 },
@@ -197,7 +185,6 @@ const fallbackQuests = [
     estimatedTime: '3〜5時間',
     players: '2〜5人',
     region: '自宅完結',
-    purposes: ['boardgame', 'home'],
     items: [
       { icon: '◆', name: '招待状（封蝋付き）' },
       { icon: '◆', name: '専用ボードゲーム一式' },
@@ -205,6 +192,7 @@ const fallbackQuests = [
     ],
     prologue: '届いたのは、封蝋で封じられた一通の招待状。「闇オークション」への参加権と、そこで使う専用ボードゲームが同封されていた。ゲームのルールは単純だが、裏には隠されたルールがある。全てのカードを読み解いた時、オークションの真の目的が明らかになる。',
     cautions: ['ネタバレ禁止', '2人以上での挑戦推奨', '対象年齢: 15歳以上'],
+    purposes: ['boardgame', 'home'],
     reviews: [
       { user: '深淵の探索者', title: '賢者', avatar: '深', level: 78, rank: 'A', stars: 5, date: '2026.02.22', text: 'ボードゲームとしても謎解きとしても完成度が高い。5人でやったけど全員が役割を持てるバランスが素晴らしい。隠しルールを発見した時の衝撃がたまらない。', sub: { craft: 5, story: 5, volume: 5 }, likes: 31 },
       { user: '炎の魔術師', title: '勇者', avatar: '炎', level: 56, rank: 'B', stars: 5, date: '2026.02.18', text: '封蝋の招待状を開ける瞬間からテンション爆上がり。ボードゲーム部分も戦略性があって面白い。何度でも遊べるのもいい。', sub: { craft: 5, story: 5, volume: 5 }, likes: 19 },
@@ -230,13 +218,13 @@ const fallbackQuests = [
     estimatedTime: '—',
     players: '—',
     region: '自宅完結',
-    purposes: ['home'],
     items: [
       { icon: '◆', name: 'リアクエ専用ドリンク' },
       { icon: '◆', name: 'ヒント解放コード付きカード' },
     ],
     prologue: '冒険に疲れた時、行き詰まった時——この「回復のポーション」があなたを助ける。リアクエ専用ドリンクと共に届くカードには、各クエストで使えるヒント解放コードが封入されている。飲んで、読んで、再び冒険へ。',
     cautions: ['賞味期限をご確認ください', '各クエストのヒントは1回限り'],
+    purposes: ['home'],
     reviews: [
       { user: '白銀の聖女', title: '見習い', avatar: '白', level: 15, rank: 'D', stars: 5, date: '2026.02.08', text: 'ドリンクが意外と美味しい！ヒントコードのおかげで詰まっていたクエストをクリアできた。冒険のお供に最適。', sub: { craft: 4, story: 3, volume: 2 }, likes: 18 },
       { user: '大地の守人', title: '見習い', avatar: '大', level: 3, rank: 'F', stars: 4, date: '2026.01.30', text: 'ポーション瓶のデザインが可愛い。ヒントコードが思った以上に役立つ。気軽に買えるのがいい。', sub: { craft: 4, story: 3, volume: 2 }, likes: 10 },
@@ -247,22 +235,17 @@ const fallbackQuests = [
   },
 ];
 
-/* ── QUEST DATA (mutable, loaded from Supabase or fallback) ── */
-let quests = [...fallbackQuests];
-
 /* ── USER STATE ── */
 const userState = {
   loggedIn: false,
-  userId: null,
   role: null,
   name: '名もなき冒険者',
   avatar: '冒',
   title: '見習い',
   questsCompleted: 0,
   questsAccepted: 0,
-  coins: 2450,
+  coins: 0,
   acceptedQuests: [],
-  reviewedQuests: [],
 };
 
 /* Title progression */
@@ -272,13 +255,6 @@ const titleLevels = [
   { name: '勇者', min: 5 },
   { name: '賢者', min: 10 },
 ];
-
-/* ── GA4 ANALYTICS ── */
-function trackEvent(name, params = {}) {
-  if (typeof gtag === 'function') {
-    gtag('event', name, params);
-  }
-}
 
 /* ── NAVIGATION ── */
 let currentPage = 'opening';
@@ -295,7 +271,6 @@ function navigateTo(pageId, options = {}) {
     'terms': 'page-terms',
     'privacy': 'page-privacy',
     'tokushoho': 'page-tokushoho',
-    'contact': 'page-contact',
   };
 
   const targetEl = pageMap[pageId];
@@ -304,9 +279,6 @@ function navigateTo(pageId, options = {}) {
   // Save current scroll
   const currentEl = document.querySelector('.page.active');
   if (currentEl) savedScrollPositions[currentEl.id] = currentEl.scrollTop;
-
-  // Track page view
-  trackEvent('page_view', { page_name: pageId });
 
   // Transition
   if (options.transition !== false) {
@@ -318,13 +290,22 @@ function navigateTo(pageId, options = {}) {
       showPage(targetEl);
       currentPage = pageId;
       if (options.onShow) options.onShow();
+      // Page-specific init
+      if (pageId === 'rankings') renderRanking('popular');
+      if (pageId === 'mypage') renderMyPage();
+      if (['terms', 'privacy', 'tokushoho'].includes(pageId)) renderLegalPage(pageId);
       setTimeout(() => overlay.classList.remove('active'), 400);
     }, options.delay || 600);
   } else {
     showPage(targetEl);
     currentPage = pageId;
     if (options.onShow) options.onShow();
+    if (pageId === 'rankings') renderRanking('popular');
+    if (pageId === 'mypage') renderMyPage();
+    if (['terms', 'privacy', 'tokushoho'].includes(pageId)) renderLegalPage(pageId);
   }
+
+  trackEvent('page_view', { page_title: pageId });
 }
 
 function showPage(targetId) {
@@ -345,223 +326,164 @@ function updateActiveNavLinks() {
   });
 }
 
-/* ── AUTHENTICATION ── */
+/* ── AUTH ── */
+let authMode = 'login';
+
 function switchAuthTab(mode) {
-  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.auth-tab[data-mode="${mode}"]`)?.classList.add('active');
-
+  authMode = mode;
+  document.querySelectorAll('.auth-tab').forEach((tab, i) => {
+    tab.classList.toggle('active', (i === 0 && mode === 'login') || (i === 1 && mode === 'signup'));
+  });
   const nameField = document.getElementById('auth-name-field');
-  const submitBtn = document.getElementById('auth-submit-btn');
-  const authError = document.getElementById('auth-error');
-
-  if (mode === 'register') {
+  const submitText = document.getElementById('auth-submit-text');
+  const pwField = document.getElementById('auth-password');
+  if (mode === 'signup') {
     nameField.style.display = 'block';
-    submitBtn.textContent = '冒険を始める';
+    submitText.textContent = '冒険者として登録';
+    pwField.autocomplete = 'new-password';
   } else {
     nameField.style.display = 'none';
-    submitBtn.textContent = 'ログイン';
+    submitText.textContent = '冒険者としてログイン';
+    pwField.autocomplete = 'current-password';
   }
-  authError.textContent = '';
-  authError.style.display = 'none';
+  document.getElementById('auth-error').textContent = '';
+  // Hide reset form if visible
+  document.getElementById('auth-reset-form').style.display = 'none';
+  document.querySelector('.auth-form').style.display = '';
+  document.querySelector('.auth-links').style.display = '';
 }
 
 async function handleAuth(e) {
   e.preventDefault();
-  const sb = getSupabase();
-  if (!sb) {
-    // Fallback: no Supabase configured
-    loginAsAdventurerFallback();
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errorEl = document.getElementById('auth-error');
+  const submitBtn = document.getElementById('auth-submit-btn');
+  errorEl.textContent = '';
+  submitBtn.disabled = true;
+
+  if (!supabase) {
+    // Fallback: demo mode without Supabase
+    loginAsAdventurer();
+    submitBtn.disabled = false;
     return;
   }
 
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const activeTab = document.querySelector('.auth-tab.active')?.dataset.mode || 'login';
-  const authError = document.getElementById('auth-error');
-  const submitBtn = document.getElementById('auth-submit-btn');
-
-  authError.style.display = 'none';
-  submitBtn.disabled = true;
-  submitBtn.textContent = '処理中...';
-
   try {
-    if (activeTab === 'register') {
+    if (authMode === 'signup') {
       const displayName = document.getElementById('auth-name').value.trim() || '名もなき冒険者';
-      const { data, error } = await sb.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { display_name: displayName },
-        },
+      const { data, error } = await supabase.auth.signUp({
+        email, password,
+        options: { data: { display_name: displayName } }
       });
       if (error) throw error;
       if (data.user && !data.session) {
-        authError.textContent = '確認メールを送信しました。メールを確認してください。';
-        authError.style.display = 'block';
-        authError.classList.add('auth-success');
+        errorEl.style.color = 'var(--neon-gold)';
+        errorEl.textContent = '確認メールを送信しました。メールのリンクをクリックしてください。';
         submitBtn.disabled = false;
-        submitBtn.textContent = '冒険を始める';
         return;
       }
     } else {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
     }
-    trackEvent('login', { method: 'email' });
+    // Auth state change listener will handle navigation
   } catch (err) {
-    authError.classList.remove('auth-success');
-    authError.textContent = getAuthErrorMessage(err.message);
-    authError.style.display = 'block';
-    submitBtn.disabled = false;
-    submitBtn.textContent = activeTab === 'register' ? '冒険を始める' : 'ログイン';
+    errorEl.style.color = 'var(--accent-red)';
+    const msg = err.message || '';
+    if (msg.includes('Invalid login')) errorEl.textContent = 'メールアドレスまたはパスワードが正しくありません';
+    else if (msg.includes('already registered')) errorEl.textContent = 'このメールアドレスは既に登録されています';
+    else errorEl.textContent = msg || '認証エラーが発生しました';
   }
-}
-
-function getAuthErrorMessage(msg) {
-  if (msg.includes('Invalid login')) return 'メールアドレスまたはパスワードが正しくありません。';
-  if (msg.includes('already registered')) return 'このメールアドレスは既に登録されています。';
-  if (msg.includes('Password should be')) return 'パスワードは6文字以上で設定してください。';
-  if (msg.includes('valid email')) return '有効なメールアドレスを入力してください。';
-  return 'エラーが発生しました。もう一度お試しください。';
-}
-
-/* ── PASSWORD RESET ── */
-function showPasswordReset() {
-  document.querySelector('.auth-form').style.display = 'none';
-  document.querySelector('.auth-tabs').style.display = 'none';
-  document.getElementById('auth-forgot-link').style.display = 'none';
-  document.getElementById('auth-reset-form').style.display = 'block';
-  document.getElementById('reset-error').style.display = 'none';
-  document.getElementById('reset-success').style.display = 'none';
-}
-
-function backToLogin() {
-  document.querySelector('.auth-form').style.display = 'block';
-  document.querySelector('.auth-tabs').style.display = 'flex';
-  document.getElementById('auth-forgot-link').style.display = 'block';
-  document.getElementById('auth-reset-form').style.display = 'none';
-}
-
-async function handlePasswordReset(e) {
-  e.preventDefault();
-  const sb = getSupabase();
-  const email = document.getElementById('reset-email').value.trim();
-  const errorEl = document.getElementById('reset-error');
-  const successEl = document.getElementById('reset-success');
-  const submitBtn = document.getElementById('reset-submit-btn');
-
-  errorEl.style.display = 'none';
-  successEl.style.display = 'none';
-
-  if (!email) {
-    errorEl.textContent = 'メールアドレスを入力してください。';
-    errorEl.style.display = 'block';
-    return;
-  }
-
-  if (!sb) {
-    errorEl.textContent = 'サービスに接続できません。';
-    errorEl.style.display = 'block';
-    return;
-  }
-
-  submitBtn.disabled = true;
-  submitBtn.textContent = '送信中...';
-
-  try {
-    const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + window.location.pathname,
-    });
-    if (error) throw error;
-
-    successEl.textContent = 'リセットリンクを送信しました。メールをご確認ください。';
-    successEl.style.display = 'block';
-  } catch (err) {
-    errorEl.textContent = 'リセットメールの送信に失敗しました。メールアドレスをご確認ください。';
-    errorEl.style.display = 'block';
-  }
-
   submitBtn.disabled = false;
-  submitBtn.textContent = 'リセットリンクを送信';
 }
 
 async function handleLogout() {
-  const sb = getSupabase();
-  if (sb) {
-    await sb.auth.signOut();
-  }
-
-  // Reset state
+  if (supabase) await supabase.auth.signOut();
   userState.loggedIn = false;
-  userState.userId = null;
   userState.role = null;
   userState.name = '名もなき冒険者';
   userState.avatar = '冒';
   userState.title = '見習い';
   userState.questsCompleted = 0;
   userState.questsAccepted = 0;
-  userState.coins = 2450;
+  userState.coins = 0;
   userState.acceptedQuests = [];
-  userState.reviewedQuests = [];
-
-  stopBGM();
-  trackEvent('logout');
   navigateTo('opening', { transitionText: 'ログアウトしています...', delay: 600 });
 }
 
-async function loadUserProfile(userId) {
-  const sb = getSupabase();
-  if (!sb) return;
+function showPasswordReset() {
+  document.querySelector('.auth-form').style.display = 'none';
+  document.querySelector('.auth-links').style.display = 'none';
+  document.getElementById('auth-reset-form').style.display = 'block';
+}
 
+function backToLogin() {
+  document.querySelector('.auth-form').style.display = '';
+  document.querySelector('.auth-links').style.display = '';
+  document.getElementById('auth-reset-form').style.display = 'none';
+}
+
+async function handlePasswordReset() {
+  const email = document.getElementById('reset-email').value.trim();
+  const errorEl = document.getElementById('reset-error');
+  if (!email) { errorEl.textContent = 'メールアドレスを入力してください'; return; }
+  if (!supabase) { errorEl.textContent = 'この機能は現在利用できません'; return; }
   try {
-    // Load profile
-    const { data: profile } = await sb
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (profile) {
-      userState.name = profile.display_name;
-      userState.avatar = profile.avatar_char;
-      userState.title = profile.title;
-      userState.questsCompleted = profile.quests_completed;
-      userState.questsAccepted = profile.quests_accepted;
-      userState.coins = profile.coins;
-      userState.role = profile.role;
-    }
-
-    // Load accepted quests
-    const { data: accepted } = await sb
-      .from('accepted_quests')
-      .select('quest_id, status, accepted_at')
-      .eq('user_id', userId)
-      .order('accepted_at', { ascending: false });
-
-    if (accepted) {
-      userState.acceptedQuests = accepted.map(a => a.quest_id);
-    }
-
-    // Load reviewed quest IDs
-    const { data: reviewed } = await sb
-      .from('reviews')
-      .select('quest_id')
-      .eq('user_id', userId);
-
-    if (reviewed) {
-      userState.reviewedQuests = reviewed.map(r => r.quest_id);
-    }
-  } catch (e) {
-    console.error('Profile load error:', e);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname,
+    });
+    if (error) throw error;
+    errorEl.style.color = 'var(--neon-gold)';
+    errorEl.textContent = 'リセットリンクを送信しました。メールを確認してください。';
+  } catch (err) {
+    errorEl.style.color = 'var(--accent-red)';
+    errorEl.textContent = err.message || 'エラーが発生しました';
   }
 }
 
-/* Fallback login (when Supabase not configured) */
-function loginAsAdventurerFallback() {
+async function loadUserProfile(userId) {
+  if (!supabase) return;
+  try {
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (profile) {
+      userState.name = profile.display_name || '名もなき冒険者';
+      userState.avatar = profile.avatar_char || '冒';
+      userState.title = profile.title || '見習い';
+      userState.questsCompleted = profile.quests_completed || 0;
+      userState.questsAccepted = profile.quests_accepted || 0;
+      userState.coins = profile.coins || 0;
+    }
+    const { data: accepted } = await supabase.from('accepted_quests').select('quest_id').eq('user_id', userId);
+    if (accepted) userState.acceptedQuests = accepted.map(a => a.quest_id);
+  } catch (e) { /* use defaults */ }
+}
+
+/* Supabase auth state listener */
+if (supabase) {
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      userState.loggedIn = true;
+      userState.role = 'adventurer';
+      await loadUserProfile(session.user.id);
+      updateHeaderUser();
+      if (currentPage === 'opening') {
+        playStartSFX();
+        setTimeout(() => startBGM(), 300);
+        navigateTo('quest-board', {
+          transitionText: 'ギルド掲示板を開いています...',
+          delay: 1200,
+          onShow: () => { renderQuestCards(quests); updateHeaderUser(); }
+        });
+      }
+    }
+  });
+}
+
+/* Demo login fallback */
+function loginAsAdventurer() {
   userState.loggedIn = true;
   userState.role = 'adventurer';
-  const nameInput = document.getElementById('auth-name')?.value?.trim();
-  if (nameInput) userState.name = nameInput;
 
   playStartSFX();
   setTimeout(() => startBGM(), 300);
@@ -569,8 +491,7 @@ function loginAsAdventurerFallback() {
   navigateTo('quest-board', {
     transitionText: 'ギルド掲示板を開いています...',
     delay: 1200,
-    onShow: async () => {
-      await loadQuestsFromDB();
+    onShow: () => {
       renderQuestCards(quests);
       updateHeaderUser();
     }
@@ -587,245 +508,6 @@ function loginAsCreator() {
 function updateHeaderUser() {
   document.querySelectorAll('#header-username').forEach(el => el.textContent = userState.name);
   document.querySelectorAll('#header-title').forEach(el => el.textContent = userState.title);
-}
-
-/* ── LOAD QUESTS FROM SUPABASE ── */
-async function loadQuestsFromDB() {
-  const sb = getSupabase();
-  if (!sb) return;
-
-  try {
-    const { data: dbQuests, error } = await sb
-      .from('quests')
-      .select('*, quest_items(*)')
-      .eq('is_published', true)
-      .order('id');
-
-    if (error) throw error;
-    if (!dbQuests || dbQuests.length === 0) return;
-
-    // Map DB format to app format
-    quests = dbQuests.map(q => {
-      const fallback = fallbackQuests.find(fq => fq.id === q.id);
-      return {
-        id: q.id,
-        title: q.title,
-        tagline: q.tagline,
-        rank: q.rank,
-        difficulty: q.difficulty,
-        price: q.price,
-        category: q.category,
-        format: q.format,
-        genre: q.genre,
-        subGenre: q.sub_genre,
-        isNew: q.is_new,
-        image: q.image_url || (fallback ? fallback.image : ''),
-        estimatedTime: q.estimated_time,
-        players: q.players,
-        region: q.region,
-        purposes: q.purposes || [],
-        items: q.quest_items
-          ? q.quest_items.sort((a, b) => a.sort_order - b.sort_order).map(i => ({ icon: i.icon, name: i.name }))
-          : (fallback ? fallback.items : []),
-        prologue: q.prologue,
-        cautions: q.cautions || [],
-        reviewAvg: parseFloat(q.review_avg) || 0,
-        reviewCount: q.review_count || 0,
-        salesCount: q.sales_count || 0,
-        shopifyVariantId: q.shopify_variant_id,
-        shopifyProductId: q.shopify_product_id,
-        // Reviews loaded dynamically
-        reviews: fallback ? fallback.reviews : [],
-      };
-    });
-  } catch (e) {
-    console.error('Failed to load quests from DB, using fallback:', e);
-  }
-}
-
-/* ── LOAD REVIEWS FROM SUPABASE ── */
-async function loadReviews(questId) {
-  const sb = getSupabase();
-  if (!sb) return null;
-
-  try {
-    const { data: reviews, error } = await sb
-      .from('reviews')
-      .select(`
-        id, rating, text, sub_ratings, likes_count, created_at,
-        profiles:user_id (display_name, avatar_char, title, quests_completed)
-      `)
-      .eq('quest_id', questId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    if (!reviews || reviews.length === 0) return null;
-
-    return reviews.map(r => ({
-      user: r.profiles?.display_name || '冒険者',
-      title: r.profiles?.title || '見習い',
-      avatar: r.profiles?.avatar_char || '冒',
-      level: r.profiles?.quests_completed || 0,
-      rank: 'C',
-      stars: r.rating,
-      date: new Date(r.created_at).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.'),
-      text: r.text,
-      sub: r.sub_ratings || {},
-      likes: r.likes_count || 0,
-      reviewId: r.id,
-    }));
-  } catch (e) {
-    console.error('Failed to load reviews:', e);
-    return null;
-  }
-}
-
-/* ── SUBMIT REVIEW ── */
-async function submitReview(questId) {
-  const sb = getSupabase();
-  if (!sb || !userState.userId) return;
-
-  const rating = parseInt(document.getElementById('review-rating')?.value);
-  const text = document.getElementById('review-text')?.value?.trim();
-  const craftRating = parseInt(document.getElementById('review-sub-craft')?.value) || 3;
-  const storyRating = parseInt(document.getElementById('review-sub-story')?.value) || 3;
-  const volumeRating = parseInt(document.getElementById('review-sub-volume')?.value) || 3;
-  const errorEl = document.getElementById('review-error');
-  const formEl = document.getElementById('review-report-form');
-  const successEl = document.getElementById('review-success');
-
-  if (errorEl) { errorEl.style.display = 'none'; }
-
-  if (!rating || rating < 1 || rating > 5) {
-    if (errorEl) { errorEl.textContent = '総合評価の星を選択してください。'; errorEl.style.display = 'block'; }
-    shakeElement(errorEl);
-    return;
-  }
-  if (!text || text.length < 10) {
-    if (errorEl) { errorEl.textContent = '冒険の報告は10文字以上でお願いします。'; errorEl.style.display = 'block'; }
-    shakeElement(errorEl);
-    return;
-  }
-
-  const submitBtn = document.getElementById('review-submit-btn');
-  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '報告書を提出中...'; }
-
-  try {
-    const { error } = await sb.from('reviews').insert({
-      quest_id: questId,
-      user_id: userState.userId,
-      rating,
-      text,
-      sub_ratings: { craft: craftRating, story: storyRating, volume: volumeRating },
-    });
-
-    if (error) {
-      if (error.code === '23505') {
-        throw new Error('このクエストの報告書は既に提出済みです。');
-      }
-      throw error;
-    }
-
-    // Mark as reviewed
-    if (!userState.reviewedQuests.includes(questId)) {
-      userState.reviewedQuests.push(questId);
-    }
-
-    trackEvent('review_submit', { quest_id: questId, rating });
-    playReviewSFX();
-
-    // Show success state
-    if (formEl) formEl.style.display = 'none';
-    if (successEl) {
-      successEl.style.display = 'block';
-      successEl.classList.add('animate-in');
-    }
-
-    // Refresh quest data in background
-    const quest = quests.find(q => q.id === questId);
-    if (quest) {
-      const dbReviews = await loadReviews(questId);
-      if (dbReviews) quest.reviews = dbReviews;
-      const { data: updated } = await sb.from('quests').select('review_avg, review_count').eq('id', questId).single();
-      if (updated) {
-        quest.reviewAvg = parseFloat(updated.review_avg) || quest.reviewAvg;
-        quest.reviewCount = updated.review_count || quest.reviewCount;
-      }
-    }
-  } catch (err) {
-    if (errorEl) {
-      errorEl.textContent = err.message || '報告書の提出に失敗しました。もう一度お試しください。';
-      errorEl.style.display = 'block';
-      shakeElement(errorEl);
-    }
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '報告書を提出する'; }
-  }
-}
-
-/* Shake animation helper */
-function shakeElement(el) {
-  if (!el) return;
-  el.classList.remove('shake');
-  void el.offsetWidth; // reflow
-  el.classList.add('shake');
-}
-
-/* Review submission SFX */
-function playReviewSFX() {
-  try {
-    const ctx = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-    const now = ctx.currentTime;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.1;
-    gain.connect(ctx.destination);
-
-    // Quill writing sound + seal stamp
-    const notes = [392, 440, 523.25, 587.33, 659.25];
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const env = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      env.gain.setValueAtTime(0.3, now + i * 0.12);
-      env.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
-      osc.connect(env);
-      env.connect(gain);
-      osc.start(now + i * 0.12);
-      osc.stop(now + i * 0.12 + 0.35);
-    });
-
-    // Final stamp chord
-    [523.25, 659.25, 783.99].forEach(freq => {
-      const osc = ctx.createOscillator();
-      const env = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      env.gain.setValueAtTime(0.4, now + 0.7);
-      env.gain.exponentialRampToValueAtTime(0.01, now + 1.8);
-      osc.connect(env);
-      env.connect(gain);
-      osc.start(now + 0.7);
-      osc.stop(now + 2.0);
-    });
-  } catch (e) {}
-}
-
-/* Load user's existing review for a quest */
-async function loadMyReview(questId) {
-  const sb = getSupabase();
-  if (!sb || !userState.userId) return null;
-
-  try {
-    const { data } = await sb
-      .from('reviews')
-      .select('rating, text, sub_ratings, created_at')
-      .eq('quest_id', questId)
-      .eq('user_id', userState.userId)
-      .single();
-    return data;
-  } catch {
-    return null;
-  }
 }
 
 /* ── QUEST CARD RENDERING ── */
@@ -902,83 +584,49 @@ function renderQuestCards(list) {
 }
 
 /* ── SEARCH & FILTER ── */
-const activeFilters = {
-  keyword: '',
-  category: 'all',
-};
-
-function setPurposeFilter(purpose) {
-  if (purpose === 'region') {
-    activeFilters.category = activeFilters.category === 'outdoor' ? 'all' : 'outdoor';
-  } else {
-    activeFilters.category = activeFilters.category === purpose ? 'all' : purpose;
-  }
-
-  document.querySelectorAll('.purpose-card').forEach(card => {
-    card.classList.remove('active');
-    const cardPurpose = card.getAttribute('onclick')?.match(/setPurposeFilter\('(.+?)'\)/)?.[1];
-    if (cardPurpose === purpose && activeFilters.category !== 'all') {
-      card.classList.add('active');
-    }
-  });
-
-  syncFilterChips();
-  applyFilters();
-
-  setTimeout(() => {
-    const header = document.getElementById('search-results-header');
-    const target = (header && header.style.display !== 'none') ? header : document.getElementById('quest-grid');
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 100);
-}
+let currentFilter = 'all';
 
 function setFilter(filter, btn) {
-  activeFilters.category = filter;
+  currentFilter = filter;
   document.querySelectorAll('#filter-row .filter-chip').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
-  document.querySelectorAll('.purpose-card').forEach(card => card.classList.remove('active'));
   applyFilters();
 }
 
-function syncFilterChips() {
+function setPurposeFilter(purpose) {
+  const filterMap = { 'puzzle': 'puzzle', 'outdoor': 'outdoor', 'boardgame': 'boardgame', 'home': 'home', 'region': 'all' };
+  currentFilter = filterMap[purpose] || 'all';
   document.querySelectorAll('#filter-row .filter-chip').forEach(c => {
     c.classList.remove('active');
     const chipFilter = c.getAttribute('onclick')?.match(/setFilter\('(.+?)'/)?.[1];
-    if (chipFilter === activeFilters.category) c.classList.add('active');
+    if (chipFilter === currentFilter) c.classList.add('active');
   });
-  if (activeFilters.category === 'all') {
-    document.querySelector('#filter-row .filter-chip')?.classList.add('active');
-  }
+  if (currentFilter === 'all') document.querySelector('#filter-row .filter-chip')?.classList.add('active');
+  applyFilters();
+  setTimeout(() => {
+    const grid = document.getElementById('quest-grid');
+    if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
 }
 
-function handleSearch() {
-  activeFilters.keyword = document.getElementById('search-input').value.trim().toLowerCase();
-  applyFilters();
-}
-
-function handleSort() {
-  applyFilters();
-}
+function handleSearch() { applyFilters(); }
+function handleSort() { applyFilters(); }
 
 function applyFilters() {
-  const { keyword, category } = activeFilters;
+  const keyword = document.getElementById('search-input').value.toLowerCase();
   const sort = document.getElementById('sort-select').value;
-  const isFiltered = keyword !== '' || category !== 'all';
 
   let filtered = quests.filter(q => {
     if (keyword && !q.title.toLowerCase().includes(keyword) &&
         !q.genre.toLowerCase().includes(keyword) &&
         !q.subGenre?.toLowerCase().includes(keyword) &&
-        !q.tagline.toLowerCase().includes(keyword)) {
-      return false;
-    }
-    if (category !== 'all') {
-      if (category === 'beginner' && q.difficulty > 2) return false;
-      if (category === 'advanced' && q.difficulty < 3) return false;
-      if (['puzzle', 'outdoor', 'boardgame', 'home'].includes(category)) {
-        if (!q.purposes || !q.purposes.includes(category)) return false;
-      }
-    }
+        !q.region.toLowerCase().includes(keyword)) return false;
+    if (currentFilter === 'home' && q.format !== 'home') return false;
+    if (currentFilter === 'outdoor' && q.format !== 'outdoor' && q.format !== 'hybrid') return false;
+    if (currentFilter === 'beginner' && q.difficulty > 2) return false;
+    if (currentFilter === 'advanced' && q.difficulty < 3) return false;
+    if (currentFilter === 'puzzle' && q.genre !== '謎解き' && q.genre !== '暗号解読') return false;
+    if (currentFilter === 'boardgame' && q.genre !== 'ボードゲーム') return false;
     return true;
   });
 
@@ -991,47 +639,17 @@ function applyFilters() {
     case 'difficulty-high': filtered.sort((a, b) => b.difficulty - a.difficulty); break;
   }
 
-  const header = document.getElementById('search-results-header');
-  if (header) {
-    if (isFiltered) {
-      header.style.display = 'flex';
-      document.getElementById('search-results-count').textContent =
-        `${filtered.length}件のクエストが見つかりました`;
-    } else {
-      header.style.display = 'none';
-    }
-  }
-
   renderQuestCards(filtered);
-}
-
-function clearFilters() {
-  activeFilters.keyword = '';
-  activeFilters.category = 'all';
-  document.getElementById('search-input').value = '';
-  document.querySelectorAll('.purpose-card').forEach(card => card.classList.remove('active'));
-  syncFilterChips();
-  applyFilters();
 }
 
 /* ── QUEST DETAIL ── */
 function openQuestDetail(questId) {
   const quest = quests.find(q => q.id === questId);
   if (!quest) return;
-
-  trackEvent('view_item', { item_id: questId, item_name: quest.title, price: quest.price });
-
   navigateTo('detail', {
     transitionText: '依頼書を準備中...',
     delay: 700,
-    onShow: async () => {
-      // Try to load reviews from DB
-      const dbReviews = await loadReviews(questId);
-      if (dbReviews && dbReviews.length > 0) {
-        quest.reviews = dbReviews;
-      }
-      renderDetail(quest);
-    },
+    onShow: () => renderDetail(quest),
   });
 }
 
@@ -1040,12 +658,15 @@ function renderDetail(quest) {
   const reviewStars = n => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
   const isAccepted = userState.acceptedQuests.includes(quest.id);
   const formatLabel = { home: '自宅完結', outdoor: '現地型', hybrid: 'ハイブリッド' }[quest.format] || quest.format;
-  const hasShopify = !!quest.shopifyVariantId;
 
-  // Review distribution
   const dist = [0, 0, 0, 0, 0];
   quest.reviews.forEach(r => dist[r.stars - 1]++);
   const maxDist = Math.max(...dist, 1);
+
+  const hasShopify = quest.shopifyVariantId && shopifyClient;
+  const cartBtnHtml = hasShopify
+    ? `<button class="btn-accept btn-cart" onclick="addToCart(${quest.id})">カートに追加する</button>`
+    : `<button class="btn-accept" onclick="acceptQuest(${quest.id})">このクエストを受諾する</button>`;
 
   const container = document.getElementById('detail-content');
   container.innerHTML = `
@@ -1064,30 +685,12 @@ function renderDetail(quest) {
     </div>
 
     <div class="detail-specs">
-      <div class="spec-item">
-        <div class="spec-label">難易度</div>
-        <div class="spec-value"><div class="card-difficulty">${stars(quest.difficulty)}</div></div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-label">プレイ人数</div>
-        <div class="spec-value">${quest.players}</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-label">所要時間</div>
-        <div class="spec-value">${quest.estimatedTime}</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-label">形式</div>
-        <div class="spec-value">${formatLabel}</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-label">ジャンル</div>
-        <div class="spec-value">${quest.genre} × ${quest.subGenre}</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-label">評価</div>
-        <div class="spec-value"><span class="stars">${reviewStars(quest.reviewAvg)}</span> ${quest.reviewAvg}</div>
-      </div>
+      <div class="spec-item"><div class="spec-label">難易度</div><div class="spec-value"><div class="card-difficulty">${stars(quest.difficulty)}</div></div></div>
+      <div class="spec-item"><div class="spec-label">プレイ人数</div><div class="spec-value">${quest.players}</div></div>
+      <div class="spec-item"><div class="spec-label">所要時間</div><div class="spec-value">${quest.estimatedTime}</div></div>
+      <div class="spec-item"><div class="spec-label">形式</div><div class="spec-value">${formatLabel}</div></div>
+      <div class="spec-item"><div class="spec-label">ジャンル</div><div class="spec-value">${quest.genre} × ${quest.subGenre}</div></div>
+      <div class="spec-item"><div class="spec-label">評価</div><div class="spec-value"><span class="stars">${reviewStars(quest.reviewAvg)}</span> ${quest.reviewAvg}</div></div>
     </div>
 
     <div class="detail-section">
@@ -1098,12 +701,7 @@ function renderDetail(quest) {
     <div class="detail-section">
       <div class="detail-section-title">支給アイテム</div>
       <div class="items-grid">
-        ${quest.items.map(it => `
-          <div class="item-card">
-            <div class="item-icon">${it.icon}</div>
-            <div class="item-name">${it.name}</div>
-          </div>
-        `).join('')}
+        ${quest.items.map(it => `<div class="item-card"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div></div>`).join('')}
       </div>
     </div>
 
@@ -1114,7 +712,7 @@ function renderDetail(quest) {
       </ul>
     </div>
 
-    <!-- ACCEPTANCE / CART AREA -->
+    <!-- ACCEPTANCE / CART -->
     <div class="accept-area ${isAccepted ? 'accepted' : ''}" id="accept-area-${quest.id}">
       <div class="accept-header">
         <div class="accept-title">クエスト受注書</div>
@@ -1123,59 +721,30 @@ function renderDetail(quest) {
       <div class="accept-body">
         <div class="supply-label">◆ 支給予定アイテム</div>
         <div class="supply-items">
-          ${quest.items.map(it => `
-            <div class="supply-item">
-              <div class="supply-item-icon">${it.icon}</div>
-              <div class="supply-item-name">${it.name}</div>
-            </div>
-          `).join('')}
+          ${quest.items.map(it => `<div class="supply-item"><div class="supply-item-icon">${it.icon}</div><div class="supply-item-name">${it.name}</div></div>`).join('')}
         </div>
-
         <div class="accept-price-area">
           <div class="accept-price-label">報酬金（お支払い額）</div>
           <div class="accept-price">¥${quest.price.toLocaleString()}</div>
           <div class="accept-shipping">税込・送料込 ／ 発送目安：受注後3〜5営業日</div>
         </div>
-
-        ${isAccepted ? '' : (hasShopify ? `
-          <button class="btn-accept btn-cart" onclick="addToCart(${quest.id})" aria-label="カートに追加">
-            カートに追加する
-          </button>
-        ` : `
-          <button class="btn-accept" onclick="acceptQuest(${quest.id})" aria-label="クエストを受諾する">
-            このクエストを受諾する
-          </button>
-        `)}
+        ${isAccepted ? '' : cartBtnHtml}
       </div>
-
       <div class="acceptance-stamp" id="stamp-${quest.id}">受 諾</div>
-
       <div class="accept-complete-msg">
         <p>クエストを受諾しました。</p>
         <p><span class="highlight">数日後、あなたのポストに "物語の始まり" が届きます。</span></p>
-        <button class="btn-outline" onclick="navigateTo('mypage')" style="margin-top:1rem">
-          マイクエストを確認する →
-        </button>
+        <button class="btn-outline" onclick="navigateTo('mypage')" style="margin-top:1rem">マイクエストを確認する →</button>
       </div>
     </div>
-
-    <!-- REVIEW FORM / SUBMITTED STATE -->
-    ${isAccepted && userState.loggedIn ? renderReviewSection(quest) : ''}
-    ${!isAccepted && userState.loggedIn ? `
-    <div class="review-locked-notice">
-      <span class="review-locked-icon">◆</span>
-      クエストを受諾するとレビューを投稿できます
-    </div>
-    ` : ''}
 
     <!-- REVIEWS -->
     <div class="reviews-section">
       <div class="detail-section-title">冒険者レビュー</div>
-
       <div class="reviews-header">
         <div class="reviews-total">総数：<strong>${quest.reviewCount}</strong>件</div>
+        <div class="reviews-write-link" onclick="showReviewForm(${quest.id})">レビューを書く</div>
       </div>
-
       <div class="review-summary">
         <div class="review-avg">
           <div class="review-avg-num">${quest.reviewAvg}</div>
@@ -1191,6 +760,22 @@ function renderDetail(quest) {
             </div>
           `).join('')}
         </div>
+      </div>
+
+      <!-- Review Form (hidden by default) -->
+      <div class="review-form" id="review-form-${quest.id}" style="display:none">
+        <div class="review-form-title">レビューを投稿</div>
+        <div class="review-form-stars" id="review-stars-${quest.id}">
+          ${[1,2,3,4,5].map(n => `<span class="review-form-star" data-rating="${n}" onclick="setReviewRating(${quest.id}, ${n})">☆</span>`).join('')}
+        </div>
+        <textarea class="review-form-text" id="review-text-${quest.id}" placeholder="レビューを入力..." rows="4"></textarea>
+        <div class="review-form-sub">
+          <label>できたえ: <select id="review-craft-${quest.id}"><option value="5">5</option><option value="4">4</option><option value="3" selected>3</option><option value="2">2</option><option value="1">1</option></select></label>
+          <label>ストーリー: <select id="review-story-${quest.id}"><option value="5">5</option><option value="4">4</option><option value="3" selected>3</option><option value="2">2</option><option value="1">1</option></select></label>
+          <label>ボリューム: <select id="review-volume-${quest.id}"><option value="5">5</option><option value="4">4</option><option value="3" selected>3</option><option value="2">2</option><option value="1">1</option></select></label>
+        </div>
+        <button class="btn-accept" onclick="submitReview(${quest.id})">レビューを投稿する</button>
+        <div class="review-form-error" id="review-error-${quest.id}"></div>
       </div>
 
       <div class="review-list">
@@ -1214,13 +799,10 @@ function renderDetail(quest) {
                 </div>
                 <div class="review-date">${r.date}</div>
               </div>
-
               <div class="review-stars-row">
                 <div class="review-stars">${'★'.repeat(r.stars)}${'<span class="empty">★</span>'.repeat(5 - r.stars)}</div>
               </div>
-
-              <div class="review-text">${escapeHtml(r.text)}</div>
-
+              <div class="review-text">${r.text}</div>
               ${r.sub ? `
                 <div class="review-sub-ratings">
                   <div class="review-sub-item"><span class="review-sub-label">できたえ：</span><span class="review-sub-value">${r.sub.craft}</span></div>
@@ -1228,9 +810,8 @@ function renderDetail(quest) {
                   <div class="review-sub-item"><span class="review-sub-label">ボリューム：</span><span class="review-sub-value">${r.sub.volume}</span></div>
                 </div>
               ` : ''}
-
               <div class="review-card-footer">
-                <button class="review-like-btn" onclick="event.stopPropagation(); toggleLike(this, ${quest.id}, ${ri})" aria-label="いいね">
+                <button class="review-like-btn" onclick="event.stopPropagation(); toggleLike(this, ${quest.id}, ${ri})">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> ${r.likes || 0}
                 </button>
                 <span class="review-report">不適切なレビューを報告</span>
@@ -1243,180 +824,62 @@ function renderDetail(quest) {
   `;
 }
 
-/* XSS prevention helper */
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+/* ── REVIEW FORM ── */
+let reviewRatings = {};
+
+function showReviewForm(questId) {
+  const form = document.getElementById(`review-form-${questId}`);
+  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 
-/* ── REVIEW SECTION RENDERER ── */
-function renderReviewSection(quest) {
-  const isReviewed = userState.reviewedQuests.includes(quest.id);
-
-  if (isReviewed) {
-    // Find the user's review in loaded reviews
-    const myReview = quest.reviews.find(r =>
-      r.user === userState.name || r.reviewId
-    );
-    const reviewStarsStr = n => '★'.repeat(n) + '<span class="empty">★</span>'.repeat(5 - n);
-
-    return `
-    <div class="review-form-section">
-      <div class="report-scroll">
-        <div class="report-header">
-          <div class="report-ornament">◆ ◇ ◆</div>
-          <div class="report-title">冒険報告書</div>
-          <div class="report-subtitle">— ADVENTURE REPORT —</div>
-        </div>
-        <div class="report-submitted">
-          <div class="report-stamp">提出済</div>
-          <div class="report-submitted-info">
-            <div class="report-submitted-quest">【${escapeHtml(quest.title)}】</div>
-            ${myReview ? `
-              <div class="report-submitted-rating">
-                <span class="report-submitted-stars">${reviewStarsStr(myReview.stars || myReview.rating || 5)}</span>
-              </div>
-              <div class="report-submitted-text">${escapeHtml(myReview.text)}</div>
-              ${myReview.sub ? `
-                <div class="report-submitted-subs">
-                  <span>できたえ: ${reviewStarsStr(myReview.sub.craft || 3)}</span>
-                  <span>ストーリー: ${reviewStarsStr(myReview.sub.story || 3)}</span>
-                  <span>ボリューム: ${reviewStarsStr(myReview.sub.volume || 3)}</span>
-                </div>
-              ` : ''}
-            ` : `
-              <p class="report-submitted-note">冒険報告書は正常に受理されました。</p>
-            `}
-          </div>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  // Show the form
-  const starRow = (name, hiddenId) => `
-    <div class="report-star-row">
-      <div class="report-star-label">${name}</div>
-      <div class="report-star-group" data-target="${hiddenId}">
-        ${[1,2,3,4,5].map(n => `
-          <button type="button" class="rstar" data-rating="${n}"
-            onmouseenter="previewStars(this)" onmouseleave="unpreviewStars(this)"
-            onclick="setStarRating(this)">★</button>
-        `).join('')}
-      </div>
-      <input type="hidden" id="${hiddenId}" value="0">
-    </div>`;
-
-  return `
-  <div class="review-form-section">
-    <div class="report-scroll" id="review-report-form">
-      <div class="report-header">
-        <div class="report-ornament">◆ ◇ ◆</div>
-        <div class="report-title">冒険報告書</div>
-        <div class="report-subtitle">— ADVENTURE REPORT —</div>
-        <div class="report-quest-name">依頼: 【${escapeHtml(quest.title)}】</div>
-        <div class="report-reporter">報告者: ${escapeHtml(userState.name)}（${userState.title}）</div>
-      </div>
-
-      <form class="report-form" onsubmit="event.preventDefault(); submitReview(${quest.id})">
-        <div class="report-section">
-          <div class="report-section-label">◆ 総合評価</div>
-          ${starRow('この冒険を総合的に評価', 'review-rating')}
-        </div>
-
-        <div class="report-divider"></div>
-
-        <div class="report-section">
-          <div class="report-section-label">◆ 項目別評価</div>
-          ${starRow('できたえ（アイテムの質）', 'review-sub-craft')}
-          ${starRow('ストーリー（物語の魅力）', 'review-sub-story')}
-          ${starRow('ボリューム（満足度）', 'review-sub-volume')}
-        </div>
-
-        <div class="report-divider"></div>
-
-        <div class="report-section">
-          <div class="report-section-label">◆ 冒険の記録</div>
-          <div class="report-textarea-wrap">
-            <textarea id="review-text" class="report-textarea"
-              rows="5" placeholder="この冒険で印象に残ったこと、感動したこと、他の冒険者に伝えたいことを記してください..."
-              ></textarea>
-            <div class="report-textarea-count" id="review-char-count">0文字</div>
-          </div>
-        </div>
-
-        <div class="review-error" id="review-error" style="display:none"></div>
-
-        <button type="submit" class="btn-report-submit" id="review-submit-btn">
-          <span class="btn-report-icon">◆</span>
-          報告書を提出する
-        </button>
-
-        <div class="report-note">
-          ※ 報告書は1つのクエストにつき1回のみ提出できます
-        </div>
-      </form>
-    </div>
-
-    <div class="report-success" id="review-success" style="display:none">
-      <div class="report-success-stamp">受 理</div>
-      <div class="report-success-title">冒険報告書が受理されました</div>
-      <div class="report-success-text">
-        あなたの報告は、これから冒険に挑む者たちの道標となります。
-      </div>
-      <button class="btn-outline" onclick="navigateTo('quest-board')" style="margin-top:1rem">
-        掲示板に戻る →
-      </button>
-    </div>
-  </div>`;
-}
-
-/* ── STAR RATING INTERACTIONS ── */
-function previewStars(btn) {
-  const group = btn.closest('.report-star-group');
-  const rating = parseInt(btn.dataset.rating);
-  group.querySelectorAll('.rstar').forEach(s => {
-    s.classList.toggle('preview', parseInt(s.dataset.rating) <= rating);
+function setReviewRating(questId, rating) {
+  reviewRatings[questId] = rating;
+  const container = document.getElementById(`review-stars-${questId}`);
+  if (!container) return;
+  container.querySelectorAll('.review-form-star').forEach((star, i) => {
+    star.textContent = i < rating ? '★' : '☆';
+    star.classList.toggle('active', i < rating);
   });
 }
 
-function unpreviewStars(btn) {
-  const group = btn.closest('.report-star-group');
-  const currentVal = parseInt(document.getElementById(group.dataset.target)?.value) || 0;
-  group.querySelectorAll('.rstar').forEach(s => {
-    s.classList.remove('preview');
-    s.classList.toggle('active', parseInt(s.dataset.rating) <= currentVal);
-  });
-}
+async function submitReview(questId) {
+  const rating = reviewRatings[questId] || 0;
+  const text = document.getElementById(`review-text-${questId}`)?.value.trim();
+  const errorEl = document.getElementById(`review-error-${questId}`);
+  if (!rating) { errorEl.textContent = '星評価を選択してください'; return; }
+  if (!text) { errorEl.textContent = 'レビュー内容を入力してください'; return; }
 
-function setStarRating(btn) {
-  const group = btn.closest('.report-star-group');
-  const rating = parseInt(btn.dataset.rating);
-  const hiddenInput = document.getElementById(group.dataset.target);
-  if (hiddenInput) hiddenInput.value = rating;
-
-  group.querySelectorAll('.rstar').forEach(s => {
-    s.classList.remove('preview');
-    s.classList.toggle('active', parseInt(s.dataset.rating) <= rating);
-  });
-
-  // Pulse animation
-  btn.classList.add('pulse');
-  setTimeout(() => btn.classList.remove('pulse'), 300);
-}
-
-/* Textarea character counter */
-document.addEventListener('input', (e) => {
-  if (e.target.id === 'review-text') {
-    const count = e.target.value.length;
-    const counter = document.getElementById('review-char-count');
-    if (counter) {
-      counter.textContent = `${count}文字`;
-      counter.classList.toggle('valid', count >= 10);
+  if (supabase) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { errorEl.textContent = 'ログインが必要です'; return; }
+    const craft = parseInt(document.getElementById(`review-craft-${questId}`)?.value || '3');
+    const story = parseInt(document.getElementById(`review-story-${questId}`)?.value || '3');
+    const volume = parseInt(document.getElementById(`review-volume-${questId}`)?.value || '3');
+    const { error } = await supabase.from('reviews').insert({
+      quest_id: questId, user_id: user.id, rating, text,
+      sub_ratings: { craft, story, volume },
+    });
+    if (error) {
+      if (error.code === '23505') errorEl.textContent = 'このクエストには既にレビュー済みです';
+      else errorEl.textContent = error.message;
+      return;
     }
   }
-});
+
+  // Add to local data
+  const quest = quests.find(q => q.id === questId);
+  if (quest) {
+    quest.reviews.unshift({
+      user: userState.name, title: userState.title, avatar: userState.avatar,
+      level: userState.questsAccepted * 5, rank: quest.rank,
+      stars: rating, date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      text, sub: { craft: 3, story: 3, volume: 3 }, likes: 0,
+    });
+    quest.reviewCount++;
+    renderDetail(quest);
+  }
+  trackEvent('submit_review', { quest_id: questId, rating });
+}
 
 /* ── ACCEPT QUEST ── */
 async function acceptQuest(questId) {
@@ -1425,24 +888,6 @@ async function acceptQuest(questId) {
 
   playAcceptSFX();
 
-  // Save to Supabase
-  const sb = getSupabase();
-  if (sb && userState.userId) {
-    try {
-      await sb.from('accepted_quests').insert({
-        user_id: userState.userId,
-        quest_id: questId,
-      });
-      // Update profile
-      await sb.from('profiles').update({
-        quests_accepted: userState.questsAccepted + 1,
-      }).eq('id', userState.userId);
-    } catch (e) {
-      console.error('Failed to save accepted quest:', e);
-    }
-  }
-
-  // Update local state
   userState.acceptedQuests.push(questId);
   userState.questsAccepted++;
 
@@ -1450,20 +895,21 @@ async function acceptQuest(questId) {
   if (newTitle) userState.title = newTitle.name;
   updateHeaderUser();
 
-  trackEvent('accept_quest', { quest_id: questId, quest_name: quest.title });
-
-  // Animate
-  const area = document.getElementById(`accept-area-${questId}`);
-  const btn = area.querySelector('.btn-accept');
-  if (btn) {
-    btn.textContent = '受諾処理中...';
-    btn.style.pointerEvents = 'none';
+  // Persist to Supabase
+  if (supabase) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('accepted_quests').upsert({ user_id: user.id, quest_id: questId, status: 'accepted' });
+      await supabase.from('profiles').update({ quests_accepted: userState.questsAccepted, title: userState.title }).eq('id', user.id);
+    }
   }
 
-  setTimeout(() => {
-    area.classList.add('accepted');
-    if (btn) btn.remove();
-  }, 800);
+  const area = document.getElementById(`accept-area-${questId}`);
+  const btn = area?.querySelector('.btn-accept');
+  if (btn) { btn.textContent = '受諾処理中...'; btn.style.pointerEvents = 'none'; }
+  setTimeout(() => { area?.classList.add('accepted'); if (btn) btn.remove(); }, 800);
+
+  trackEvent('accept_quest', { quest_id: questId, quest_name: quest.title });
 }
 
 function playAcceptSFX() {
@@ -1473,146 +919,108 @@ function playAcceptSFX() {
     const gain = ctx.createGain();
     gain.gain.value = 0.12;
     gain.connect(ctx.destination);
-
     [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const env = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = freq;
+      osc.type = 'square'; osc.frequency.value = freq;
       env.gain.setValueAtTime(0.5, now + i * 0.1);
       env.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.4);
-      osc.connect(env);
-      env.connect(gain);
-      osc.start(now + i * 0.1);
-      osc.stop(now + i * 0.1 + 0.5);
+      osc.connect(env); env.connect(gain);
+      osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.5);
     });
-
     [523.25, 659.25, 783.99].forEach(freq => {
       const osc = ctx.createOscillator();
       const env = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
+      osc.type = 'triangle'; osc.frequency.value = freq;
       env.gain.setValueAtTime(0.3, now + 0.5);
       env.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
-      osc.connect(env);
-      env.connect(gain);
-      osc.start(now + 0.5);
-      osc.stop(now + 1.6);
+      osc.connect(env); env.connect(gain);
+      osc.start(now + 0.5); osc.stop(now + 1.6);
     });
   } catch (e) {}
 }
 
-/* ── CART FUNCTIONS (SHOPIFY) ── */
+/* ── SHOPIFY CART ── */
 async function addToCart(questId) {
   const quest = quests.find(q => q.id === questId);
-  if (!quest || !quest.shopifyVariantId || !shopifyClient || !shopifyCheckout) return;
-
-  const btn = document.querySelector(`#accept-area-${questId} .btn-cart`);
-  if (btn) { btn.disabled = true; btn.textContent = 'カートに追加中...'; }
+  if (!quest || !shopifyClient || !shopifyCheckout) return;
 
   try {
     const lineItems = [{ variantId: quest.shopifyVariantId, quantity: 1 }];
     shopifyCheckout = await shopifyClient.checkout.addLineItems(shopifyCheckout.id, lineItems);
-    localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
     updateCartBadge();
     openCart();
-    trackEvent('add_to_cart', { item_id: questId, item_name: quest.title, price: quest.price });
+    trackEvent('add_to_cart', { quest_id: questId, quest_name: quest.title, value: quest.price });
   } catch (e) {
-    console.error('Add to cart error:', e);
+    console.error('Cart error:', e);
   }
-
-  if (btn) { btn.disabled = false; btn.textContent = 'カートに追加する'; }
 }
 
 async function removeFromCart(lineItemId) {
   if (!shopifyClient || !shopifyCheckout) return;
-  try {
-    shopifyCheckout = await shopifyClient.checkout.removeLineItems(shopifyCheckout.id, [lineItemId]);
-    localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
-    updateCartBadge();
-    renderCartDrawer();
-  } catch (e) {
-    console.error('Remove from cart error:', e);
-  }
+  shopifyCheckout = await shopifyClient.checkout.removeLineItems(shopifyCheckout.id, [lineItemId]);
+  updateCartBadge();
+  renderCartDrawer();
 }
 
 async function updateCartQuantity(lineItemId, qty) {
   if (!shopifyClient || !shopifyCheckout) return;
-  try {
-    if (qty <= 0) {
-      await removeFromCart(lineItemId);
-      return;
-    }
-    shopifyCheckout = await shopifyClient.checkout.updateLineItems(shopifyCheckout.id, [{ id: lineItemId, quantity: qty }]);
-    localStorage.setItem('rq_checkout_id', shopifyCheckout.id);
-    updateCartBadge();
-    renderCartDrawer();
-  } catch (e) {
-    console.error('Update cart error:', e);
-  }
+  shopifyCheckout = await shopifyClient.checkout.updateLineItems(shopifyCheckout.id, [{ id: lineItemId, quantity: qty }]);
+  updateCartBadge();
+  renderCartDrawer();
 }
 
 function proceedToCheckout() {
-  if (!shopifyCheckout || !shopifyCheckout.webUrl) return;
+  if (!shopifyCheckout?.webUrl) return;
   trackEvent('begin_checkout', { value: shopifyCheckout.totalPrice });
   window.open(shopifyCheckout.webUrl, '_blank');
 }
 
 function updateCartBadge() {
-  const count = shopifyCheckout ? shopifyCheckout.lineItems.length : 0;
-  document.querySelectorAll('.cart-count').forEach(badge => {
-    badge.textContent = count;
-    badge.style.display = count > 0 ? 'flex' : 'none';
+  const count = shopifyCheckout?.lineItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  document.querySelectorAll('.cart-count').forEach(el => {
+    el.textContent = count;
+    el.style.display = count > 0 ? 'flex' : 'none';
   });
 }
 
 function renderCartDrawer() {
-  const itemsContainer = document.getElementById('cart-items');
-  const totalEl = document.getElementById('cart-total');
-  const checkoutBtn = document.getElementById('cart-checkout-btn');
-  if (!itemsContainer) return;
-
-  if (!shopifyCheckout || shopifyCheckout.lineItems.length === 0) {
-    itemsContainer.innerHTML = '<div class="cart-empty">カートは空です</div>';
-    if (totalEl) totalEl.textContent = '¥0';
-    if (checkoutBtn) checkoutBtn.disabled = true;
+  const itemsEl = document.getElementById('cart-items');
+  const footerEl = document.getElementById('cart-footer');
+  if (!shopifyCheckout || !shopifyCheckout.lineItems?.length) {
+    itemsEl.innerHTML = '<div class="cart-empty">カートは空です</div>';
+    footerEl.style.display = 'none';
     return;
   }
 
-  itemsContainer.innerHTML = shopifyCheckout.lineItems.map(item => {
-    const imgSrc = item.variant?.image?.src || '';
-    return `
-      <div class="cart-item">
-        <div class="cart-item-image">
-          ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(item.title)}">` : '<div class="cart-item-placeholder">◆</div>'}
-        </div>
-        <div class="cart-item-info">
-          <div class="cart-item-title">${escapeHtml(item.title)}</div>
-          <div class="cart-item-price">¥${parseInt(item.variant.price.amount || item.variant.price).toLocaleString()}</div>
-          <div class="cart-item-qty">
-            <button onclick="updateCartQuantity('${item.id}', ${item.quantity - 1})" aria-label="数量を減らす">−</button>
-            <span>${item.quantity}</span>
-            <button onclick="updateCartQuantity('${item.id}', ${item.quantity + 1})" aria-label="数量を増やす">+</button>
-          </div>
-        </div>
-        <button class="cart-item-remove" onclick="removeFromCart('${item.id}')" aria-label="削除">✕</button>
+  itemsEl.innerHTML = shopifyCheckout.lineItems.map(item => `
+    <div class="cart-item">
+      <div class="cart-item-info">
+        <div class="cart-item-title">${item.title}</div>
+        <div class="cart-item-price">¥${parseInt(item.variant.price.amount).toLocaleString()}</div>
       </div>
-    `;
-  }).join('');
+      <div class="cart-item-actions">
+        <button onclick="updateCartQuantity('${item.id}', ${item.quantity - 1})">−</button>
+        <span>${item.quantity}</span>
+        <button onclick="updateCartQuantity('${item.id}', ${item.quantity + 1})">+</button>
+        <button class="cart-item-remove" onclick="removeFromCart('${item.id}')">✕</button>
+      </div>
+    </div>
+  `).join('');
 
-  if (totalEl) totalEl.textContent = `¥${parseInt(shopifyCheckout.totalPrice.amount || shopifyCheckout.totalPrice).toLocaleString()}`;
-  if (checkoutBtn) checkoutBtn.disabled = false;
+  footerEl.style.display = 'block';
+  document.getElementById('cart-total-price').textContent = `¥${parseInt(shopifyCheckout.totalPrice.amount).toLocaleString()}`;
 }
 
 function openCart() {
   renderCartDrawer();
-  document.getElementById('cart-overlay')?.classList.add('open');
-  document.getElementById('cart-drawer')?.classList.add('open');
+  document.getElementById('cart-overlay').classList.add('active');
+  document.getElementById('cart-drawer').classList.add('active');
 }
 
 function closeCart() {
-  document.getElementById('cart-overlay')?.classList.remove('open');
-  document.getElementById('cart-drawer')?.classList.remove('open');
+  document.getElementById('cart-overlay').classList.remove('active');
+  document.getElementById('cart-drawer').classList.remove('active');
 }
 
 /* ── RANKINGS ── */
@@ -1630,21 +1038,12 @@ function renderRanking(tab = 'popular') {
     list.innerHTML = sorted.map((q, i) => `
       <div class="ranking-item ${i < 3 ? 'top-3' : ''}" onclick="openQuestDetail(${q.id})">
         <div class="ranking-pos">${i + 1}</div>
-        <div class="ranking-thumb">
-          ${q.image ? `<img src="${q.image}" alt="${q.title}" loading="lazy">` : ''}
-        </div>
+        <div class="ranking-thumb">${q.image ? `<img src="${q.image}" alt="${q.title}" loading="lazy">` : ''}</div>
         <div class="ranking-info">
           <div class="ranking-info-title">${q.title}</div>
-          <div class="ranking-info-meta">
-            <span>${q.genre}</span>
-            <span>★${q.reviewAvg}</span>
-            <span>¥${q.price.toLocaleString()}</span>
-          </div>
+          <div class="ranking-info-meta"><span>${q.genre}</span><span>★${q.reviewAvg}</span><span>¥${q.price.toLocaleString()}</span></div>
         </div>
-        <div class="ranking-score">
-          <div class="ranking-score-num">${q.salesCount}</div>
-          <div class="ranking-score-label">受注数</div>
-        </div>
+        <div class="ranking-score"><div class="ranking-score-num">${q.salesCount}</div><div class="ranking-score-label">受注数</div></div>
       </div>
     `).join('');
   } else if (tab === 'rated') {
@@ -1652,20 +1051,12 @@ function renderRanking(tab = 'popular') {
     list.innerHTML = sorted.map((q, i) => `
       <div class="ranking-item ${i < 3 ? 'top-3' : ''}" onclick="openQuestDetail(${q.id})">
         <div class="ranking-pos">${i + 1}</div>
-        <div class="ranking-thumb">
-          ${q.image ? `<img src="${q.image}" alt="${q.title}" loading="lazy">` : ''}
-        </div>
+        <div class="ranking-thumb">${q.image ? `<img src="${q.image}" alt="${q.title}" loading="lazy">` : ''}</div>
         <div class="ranking-info">
           <div class="ranking-info-title">${q.title}</div>
-          <div class="ranking-info-meta">
-            <span>${q.genre}</span>
-            <span>${q.reviewCount}件のレビュー</span>
-          </div>
+          <div class="ranking-info-meta"><span>${q.genre}</span><span>${q.reviewCount}件のレビュー</span></div>
         </div>
-        <div class="ranking-score">
-          <div class="ranking-score-num">★${q.reviewAvg}</div>
-          <div class="ranking-score-label">評価</div>
-        </div>
+        <div class="ranking-score"><div class="ranking-score-num">★${q.reviewAvg}</div><div class="ranking-score-label">評価</div></div>
       </div>
     `).join('');
   } else if (tab === 'adventurers') {
@@ -1682,15 +1073,9 @@ function renderRanking(tab = 'popular') {
         <div class="ranking-thumb" style="border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5rem">${a.avatar}</div>
         <div class="ranking-info">
           <div class="ranking-info-title">${a.name}</div>
-          <div class="ranking-info-meta">
-            <span style="color:var(--neon-green)">${a.title}</span>
-            <span>${a.quests}クエスト完了</span>
-          </div>
+          <div class="ranking-info-meta"><span style="color:var(--neon-green)">${a.title}</span><span>${a.quests}クエスト完了</span></div>
         </div>
-        <div class="ranking-score">
-          <div class="ranking-score-num">${a.score.toLocaleString()}</div>
-          <div class="ranking-score-label">ポイント</div>
-        </div>
+        <div class="ranking-score"><div class="ranking-score-num">${a.score.toLocaleString()}</div><div class="ranking-score-label">ポイント</div></div>
       </div>
     `).join('');
   } else if (tab === 'creators') {
@@ -1705,22 +1090,16 @@ function renderRanking(tab = 'popular') {
         <div class="ranking-thumb" style="border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5rem">${c.avatar}</div>
         <div class="ranking-info">
           <div class="ranking-info-title">${c.name}</div>
-          <div class="ranking-info-meta">
-            <span>${c.quests}作品</span>
-            <span>★${c.rating}</span>
-          </div>
+          <div class="ranking-info-meta"><span>${c.quests}作品</span><span>★${c.rating}</span></div>
         </div>
-        <div class="ranking-score">
-          <div class="ranking-score-num">${c.sales}</div>
-          <div class="ranking-score-label">総受注数</div>
-        </div>
+        <div class="ranking-score"><div class="ranking-score-num">${c.sales}</div><div class="ranking-score-label">総受注数</div></div>
       </div>
     `).join('');
   }
 }
 
 /* ── MY PAGE ── */
-async function renderMyPage() {
+function renderMyPage() {
   const container = document.getElementById('mypage-content');
   const currentTitleIdx = titleLevels.findIndex(t => t.name === userState.title);
   const nextTitle = titleLevels[currentTitleIdx + 1];
@@ -1728,64 +1107,16 @@ async function renderMyPage() {
     ? ((userState.questsAccepted - titleLevels[currentTitleIdx].min) / (nextTitle.min - titleLevels[currentTitleIdx].min)) * 100
     : 100;
 
-  // Load order history
-  let ordersHtml = '';
-  const sb = getSupabase();
-  if (sb && userState.userId) {
-    try {
-      const { data: orders } = await sb
-        .from('orders')
-        .select('*')
-        .eq('user_id', userState.userId)
-        .order('created_at', { ascending: false });
-
-      if (orders && orders.length > 0) {
-        ordersHtml = `
-          <div class="mypage-section-title">注文履歴</div>
-          <div class="order-history-list">
-            ${orders.map(o => {
-              const statusLabel = { pending: '処理中', paid: '支払済', shipped: '発送済', delivered: '配達完了', cancelled: 'キャンセル' }[o.status] || o.status;
-              const statusClass = { pending: 'processing', paid: 'paid', shipped: 'shipping', delivered: 'delivered', cancelled: 'cancelled' }[o.status] || '';
-              return `
-                <div class="order-item">
-                  <div class="order-item-header">
-                    <span class="order-number">注文 #${escapeHtml(o.shopify_order_number || o.shopify_order_id)}</span>
-                    <span class="order-status ${statusClass}">${statusLabel}</span>
-                  </div>
-                  <div class="order-item-body">
-                    <div class="order-total">¥${o.total_price.toLocaleString()}</div>
-                    <div class="order-date">${new Date(o.created_at).toLocaleDateString('ja-JP')}</div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `;
-      }
-    } catch (e) {
-      console.error('Failed to load orders:', e);
-    }
-  }
-
   container.innerHTML = `
     <div class="mypage-profile">
       <div class="mypage-avatar">${userState.avatar}</div>
       <div class="mypage-info">
-        <div class="mypage-name">${escapeHtml(userState.name)}</div>
+        <div class="mypage-name">${userState.name}</div>
         <div class="mypage-title">${userState.title}</div>
         <div class="mypage-stats-row">
-          <div class="mypage-stat-item">
-            <div class="mypage-stat-num">${userState.questsAccepted}</div>
-            <div class="mypage-stat-label">受注済み</div>
-          </div>
-          <div class="mypage-stat-item">
-            <div class="mypage-stat-num">${userState.questsCompleted}</div>
-            <div class="mypage-stat-label">クリア</div>
-          </div>
-          <div class="mypage-stat-item">
-            <div class="mypage-stat-num">${userState.coins}</div>
-            <div class="mypage-stat-label">コイン</div>
-          </div>
+          <div class="mypage-stat-item"><div class="mypage-stat-num">${userState.questsAccepted}</div><div class="mypage-stat-label">受注済み</div></div>
+          <div class="mypage-stat-item"><div class="mypage-stat-num">${userState.questsCompleted}</div><div class="mypage-stat-label">クリア</div></div>
+          <div class="mypage-stat-item"><div class="mypage-stat-num">${userState.coins}</div><div class="mypage-stat-label">コイン</div></div>
         </div>
       </div>
     </div>
@@ -1795,13 +1126,9 @@ async function renderMyPage() {
         <div class="title-progress-label">称号レベル</div>
         <div class="title-progress-next">${nextTitle ? `次の称号: ${nextTitle.name}（あと${nextTitle.min - userState.questsAccepted}クエスト）` : '最高ランク達成！'}</div>
       </div>
-      <div class="title-bar">
-        <div class="title-bar-fill" style="width:${Math.min(progress, 100)}%"></div>
-      </div>
+      <div class="title-bar"><div class="title-bar-fill" style="width:${Math.min(progress, 100)}%"></div></div>
       <div class="title-steps">
-        ${titleLevels.map((t, i) => `
-          <div class="title-step ${i < currentTitleIdx ? 'achieved' : i === currentTitleIdx ? 'current' : ''}">${t.name}</div>
-        `).join('')}
+        ${titleLevels.map((t, i) => `<div class="title-step ${i < currentTitleIdx ? 'achieved' : i === currentTitleIdx ? 'current' : ''}">${t.name}</div>`).join('')}
       </div>
     </div>
 
@@ -1811,22 +1138,14 @@ async function renderMyPage() {
         ${userState.acceptedQuests.map(qid => {
           const q = quests.find(quest => quest.id === qid);
           if (!q) return '';
-          const hasReview = userState.reviewedQuests.includes(qid);
           return `
             <div class="my-quest-item" onclick="openQuestDetail(${q.id})">
-              <div class="my-quest-thumb">
-                ${q.image ? `<img src="${q.image}" alt="${q.title}" loading="lazy">` : ''}
-              </div>
+              <div class="my-quest-thumb">${q.image ? `<img src="${q.image}" alt="${q.title}" loading="lazy">` : ''}</div>
               <div class="my-quest-info">
                 <div class="my-quest-title">${q.title}</div>
-                <div class="my-quest-badges">
-                  <span class="my-quest-status shipping">発送準備中</span>
-                  ${hasReview
-                    ? '<span class="my-quest-review-badge reviewed">報告書 提出済</span>'
-                    : '<span class="my-quest-review-badge unreview">報告書 未提出</span>'}
-                </div>
+                <span class="my-quest-status shipping">発送準備中</span>
               </div>
-              <div class="my-quest-date">受注済み</div>
+              <div class="my-quest-date">受注日: 今日</div>
             </div>
           `;
         }).join('')}
@@ -1839,222 +1158,68 @@ async function renderMyPage() {
       </div>
     `}
 
-    ${ordersHtml}
-
-    <div class="mypage-actions">
-      <button class="btn-logout" onclick="handleLogout()" aria-label="ログアウト">ログアウト</button>
-    </div>
+    ${userState.loggedIn ? `
+      <div style="margin-top:2rem; text-align:center;">
+        <button class="btn-outline" onclick="handleLogout()" style="color:var(--accent-red); border-color:var(--accent-red);">ログアウト</button>
+      </div>
+    ` : ''}
   `;
-}
-
-/* ── LEGAL PAGES ── */
-function renderLegalPage(type) {
-  const container = document.getElementById(`${type}-content`);
-  if (!container) return;
-
-  const content = {
-    terms: `
-      <h2>利用規約</h2>
-      <p class="legal-updated">最終更新日: 2026年3月1日</p>
-
-      <h3>第1条（適用）</h3>
-      <p>本利用規約（以下「本規約」）は、リアクエ REAL QUEST（以下「当サービス」）の利用条件を定めるものです。登録ユーザーの皆さまには、本規約に従って本サービスをご利用いただきます。</p>
-
-      <h3>第2条（利用登録）</h3>
-      <p>登録希望者が当サービスの定める方法によって利用登録を申請し、当サービスがこれを承認することによって、利用登録が完了するものとします。</p>
-
-      <h3>第3条（ユーザーIDおよびパスワードの管理）</h3>
-      <p>ユーザーは、自己の責任において、本サービスのユーザーIDおよびパスワードを適切に管理するものとします。</p>
-
-      <h3>第4条（禁止事項）</h3>
-      <p>ユーザーは、本サービスの利用にあたり、以下の行為をしてはなりません。</p>
-      <ul>
-        <li>法令または公序良俗に違反する行為</li>
-        <li>犯罪行為に関連する行為</li>
-        <li>当サービスの他のユーザーまたは第三者の知的財産権、肖像権、プライバシー等を侵害する行為</li>
-        <li>当サービスのサーバーまたはネットワークの機能を破壊したり妨害したりする行為</li>
-        <li>当サービスの運営を妨害するおそれのある行為</li>
-        <li>クエスト内容のネタバレを不特定多数に公開する行為</li>
-      </ul>
-
-      <h3>第5条（商品の購入）</h3>
-      <p>ユーザーは、当サービスを通じてクエスト商品を購入することができます。商品の購入に際しては、Shopifyを通じた決済が行われます。</p>
-
-      <h3>第6条（返品・交換）</h3>
-      <p>商品の性質上（謎解きコンテンツの特性）、開封後の返品はお受けできません。未開封の場合は、商品到着後7日以内にお問い合わせください。不良品の場合は速やかに交換対応いたします。</p>
-
-      <h3>第7条（免責事項）</h3>
-      <p>当サービスは、本サービスに事実上または法律上の瑕疵がないことを明示的にも黙示的にも保証しておりません。</p>
-
-      <h3>第8条（サービス内容の変更等）</h3>
-      <p>当サービスは、ユーザーに通知することなく、本サービスの内容を変更しまたは本サービスの提供を中止することができるものとし、これによってユーザーに生じた損害について一切の責任を負いません。</p>
-    `,
-    privacy: `
-      <h2>プライバシーポリシー</h2>
-      <p class="legal-updated">最終更新日: 2026年3月1日</p>
-
-      <h3>1. 収集する情報</h3>
-      <p>当サービスは、以下の情報を収集します。</p>
-      <ul>
-        <li>メールアドレス（アカウント登録時）</li>
-        <li>表示名（任意設定）</li>
-        <li>配送先住所（商品購入時、Shopify経由）</li>
-        <li>決済情報（商品購入時、Shopify経由で処理。当サービスでは保存しません）</li>
-        <li>サービス利用履歴（クエスト受諾、レビュー投稿等）</li>
-        <li>アクセスログ（Google Analytics 4を使用）</li>
-      </ul>
-
-      <h3>2. 情報の利用目的</h3>
-      <ul>
-        <li>サービスの提供・運営</li>
-        <li>商品の配送</li>
-        <li>お問い合わせへの対応</li>
-        <li>サービスの改善・新機能開発</li>
-        <li>利用状況の分析</li>
-      </ul>
-
-      <h3>3. 第三者への提供</h3>
-      <p>当サービスは、以下の場合を除き、収集した個人情報を第三者に提供しません。</p>
-      <ul>
-        <li>ユーザーの同意がある場合</li>
-        <li>法令に基づく場合</li>
-        <li>商品配送のために配送業者に必要最低限の情報を提供する場合</li>
-      </ul>
-
-      <h3>4. 外部サービス</h3>
-      <p>当サービスでは以下の外部サービスを利用しています。</p>
-      <ul>
-        <li>Supabase（認証・データベース）</li>
-        <li>Shopify（決済・配送管理）</li>
-        <li>Google Analytics 4（アクセス解析）</li>
-      </ul>
-
-      <h3>5. データの保護</h3>
-      <p>当サービスは、収集した情報の漏えい、滅失またはき損の防止のために、適切なセキュリティ対策を実施します。</p>
-
-      <h3>6. お問い合わせ</h3>
-      <p>プライバシーに関するお問い合わせは、お問い合わせフォームよりご連絡ください。</p>
-    `,
-    tokushoho: `
-      <h2>特定商取引法に基づく表記</h2>
-      <p class="legal-updated">最終更新日: 2026年3月1日</p>
-
-      <table class="legal-table">
-        <tr><th>販売事業者</th><td>リアクエ REAL QUEST 運営事務局</td></tr>
-        <tr><th>代表者</th><td>※ 要設定</td></tr>
-        <tr><th>所在地</th><td>※ 要設定</td></tr>
-        <tr><th>電話番号</th><td>※ 要設定（お問い合わせフォームをご利用ください）</td></tr>
-        <tr><th>メールアドレス</th><td>※ 要設定</td></tr>
-        <tr><th>販売URL</th><td>https://moedesu1.github.io/realquest-demo/a-rpg/</td></tr>
-        <tr><th>販売価格</th><td>各商品ページに記載（税込表示）</td></tr>
-        <tr><th>送料</th><td>全商品送料込み</td></tr>
-        <tr><th>商品代金以外の必要料金</th><td>なし</td></tr>
-        <tr><th>支払方法</th><td>クレジットカード（Shopify経由）</td></tr>
-        <tr><th>支払時期</th><td>注文時に即時決済</td></tr>
-        <tr><th>商品の引渡し時期</th><td>受注後3〜5営業日以内に発送</td></tr>
-        <tr><th>返品・交換について</th><td>商品の性質上、開封後の返品不可。未開封の場合は商品到着後7日以内。不良品は速やかに交換対応。</td></tr>
-      </table>
-    `,
-  };
-
-  container.innerHTML = content[type] || '';
-}
-
-/* ── CONTACT FORM ── */
-async function handleContactSubmit(e) {
-  e.preventDefault();
-  const name = document.getElementById('contact-name').value.trim();
-  const email = document.getElementById('contact-email').value.trim();
-  const category = document.getElementById('contact-category').value;
-  const message = document.getElementById('contact-message').value.trim();
-  const errorEl = document.getElementById('contact-error');
-  const successEl = document.getElementById('contact-success');
-  const submitBtn = document.getElementById('contact-submit-btn');
-
-  errorEl.style.display = 'none';
-  successEl.style.display = 'none';
-
-  if (!name || !email || !category || !message) {
-    errorEl.textContent = '全ての項目を入力してください。';
-    errorEl.style.display = 'block';
-    return;
-  }
-
-  submitBtn.disabled = true;
-  submitBtn.textContent = '送信中...';
-
-  const sb = getSupabase();
-  if (sb) {
-    try {
-      const { error } = await sb.from('contact_submissions').insert({ name, email, category, message });
-      if (error) throw error;
-
-      // Trigger email notification via Edge Function (fire-and-forget)
-      sb.functions.invoke('send-contact-email', {
-        body: { name, email, category, message },
-      }).catch(e => console.log('Email notification skipped:', e.message));
-    } catch (err) {
-      errorEl.textContent = '送信に失敗しました。もう一度お試しください。';
-      errorEl.style.display = 'block';
-      submitBtn.disabled = false;
-      submitBtn.textContent = '送信する';
-      return;
-    }
-  } else {
-    errorEl.textContent = 'サービスに接続できません。しばらく経ってからお試しください。';
-    errorEl.style.display = 'block';
-    submitBtn.disabled = false;
-    submitBtn.textContent = '送信する';
-    return;
-  }
-
-  trackEvent('contact_submit', { category });
-  successEl.textContent = 'お問い合わせを受け付けました。確認後、ご連絡いたします。';
-  successEl.style.display = 'block';
-  e.target.reset();
-  submitBtn.disabled = false;
-  submitBtn.textContent = '送信する';
 }
 
 /* ── REVIEW LIKE ── */
 async function toggleLike(btn, questId, reviewIdx) {
+  btn.classList.toggle('liked');
   const quest = quests.find(q => q.id === questId);
   if (!quest || !quest.reviews[reviewIdx]) return;
-
-  const review = quest.reviews[reviewIdx];
-  const reviewId = review.reviewId;
-  const sb = getSupabase();
-  const isCurrentlyLiked = btn.classList.contains('liked');
-
-  // Optimistic UI update
-  btn.classList.toggle('liked');
-  if (isCurrentlyLiked) review.likes = Math.max(0, review.likes - 1);
-  else review.likes++;
-  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="${isCurrentlyLiked ? 'none' : 'currentColor'}" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> ${review.likes}`;
+  const isLiked = btn.classList.contains('liked');
+  if (isLiked) quest.reviews[reviewIdx].likes++;
+  else quest.reviews[reviewIdx].likes--;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> ${quest.reviews[reviewIdx].likes}`;
 
   // Persist to Supabase
-  if (sb && userState.userId && reviewId) {
-    try {
-      if (isCurrentlyLiked) {
-        // Remove like
-        await sb.from('review_likes')
-          .delete()
-          .eq('review_id', reviewId)
-          .eq('user_id', userState.userId);
-      } else {
-        // Add like
-        await sb.from('review_likes')
-          .insert({ review_id: reviewId, user_id: userState.userId });
-      }
-    } catch (e) {
-      // Revert on error
-      console.error('Like toggle error:', e);
-      btn.classList.toggle('liked');
-      if (isCurrentlyLiked) review.likes++;
-      else review.likes = Math.max(0, review.likes - 1);
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> ${review.likes}`;
+  if (supabase && isLiked) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('review_likes').upsert({ user_id: user.id, review_id: reviewIdx });
     }
   }
+}
+
+/* ── LEGAL PAGES ── */
+function renderLegalPage(type) {
+  const content = {
+    terms: `<h1>利用規約</h1>
+      <p>最終更新日: 2026年3月1日</p>
+      <h2>第1条（適用）</h2><p>本規約は、リアクエ REAL QUEST（以下「本サービス」）の利用に関する条件を定めるものです。</p>
+      <h2>第2条（利用登録）</h2><p>登録希望者が当方の定める方法により利用登録を申請し、当方がこれを承認することにより利用登録が完了するものとします。</p>
+      <h2>第3条（禁止事項）</h2><p>ユーザーは以下の行為をしてはなりません。<br>・法令または公序良俗に違反する行為<br>・犯罪行為に関連する行為<br>・本サービスの内容等を不正に利用する行為<br>・他のユーザーに関する個人情報等を収集する行為<br>・ネタバレ等、他のユーザーの体験を損なう行為</p>
+      <h2>第4条（商品の配送）</h2><p>クエスト商品は受注後3〜5営業日以内に発送いたします。配送状況はマイページよりご確認いただけます。</p>
+      <button class="btn-outline" onclick="navigateTo('quest-board')" style="margin-top:2rem">← トップに戻る</button>`,
+    privacy: `<h1>プライバシーポリシー</h1>
+      <p>最終更新日: 2026年3月1日</p>
+      <h2>1. 収集する情報</h2><p>メールアドレス、表示名、お届け先住所（購入時）、決済情報（Shopify経由）。</p>
+      <h2>2. 利用目的</h2><p>サービスの提供・運営、商品の発送、お問い合わせ対応、サービス改善のための分析。</p>
+      <h2>3. 第三者提供</h2><p>法令に基づく場合を除き、お客様の同意なく第三者に個人情報を提供することはありません。決済処理はShopify Inc.が行います。</p>
+      <h2>4. データの保管</h2><p>お客様のデータはSupabase（AWS東京リージョン）に暗号化して保管されます。</p>
+      <button class="btn-outline" onclick="navigateTo('quest-board')" style="margin-top:2rem">← トップに戻る</button>`,
+    tokushoho: `<h1>特定商取引法に基づく表記</h1>
+      <table class="legal-table">
+        <tr><th>販売業者</th><td>リアクエ REAL QUEST 運営事務局</td></tr>
+        <tr><th>運営統括責任者</th><td>お問い合わせください</td></tr>
+        <tr><th>所在地</th><td>お問い合わせください</td></tr>
+        <tr><th>電話番号</th><td>お問い合わせください</td></tr>
+        <tr><th>メールアドレス</th><td>info@realquest.jp</td></tr>
+        <tr><th>販売価格</th><td>各商品ページに記載（税込表示）</td></tr>
+        <tr><th>送料</th><td>販売価格に含む（全国一律送料込み）</td></tr>
+        <tr><th>お支払い方法</th><td>クレジットカード、Apple Pay、Google Pay</td></tr>
+        <tr><th>商品の引渡し時期</th><td>注文確認後3〜5営業日以内に発送</td></tr>
+        <tr><th>返品・交換</th><td>商品の性質上（謎解き・体験型コンテンツ）、開封後の返品はお受けできません。未開封の場合は商品到着後7日以内にご連絡ください。</td></tr>
+      </table>
+      <button class="btn-outline" onclick="navigateTo('quest-board')" style="margin-top:2rem">← トップに戻る</button>`,
+  };
+
+  const el = document.getElementById(`${type}-content`);
+  if (el) el.innerHTML = content[type] || '';
 }
 
 /* ── MOBILE MENU ── */
@@ -2079,7 +1244,6 @@ function startBGM() {
 
 function scheduleBGMLoop() {
   if (!isPlaying || !audioContext) return;
-
   const ctx = audioContext;
   const now = ctx.currentTime;
   const master = ctx.createGain();
@@ -2098,32 +1262,25 @@ function scheduleBGMLoop() {
     chord.forEach(freq => {
       const osc = ctx.createOscillator();
       const env = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
+      osc.type = 'sine'; osc.frequency.value = freq;
       const t = now + ci * chordDur;
       env.gain.setValueAtTime(0, t);
       env.gain.linearRampToValueAtTime(0.3, t + 0.5);
       env.gain.setValueAtTime(0.3, t + chordDur - 0.5);
       env.gain.linearRampToValueAtTime(0, t + chordDur);
-      osc.connect(env);
-      env.connect(master);
-      osc.start(t);
-      osc.stop(t + chordDur);
+      osc.connect(env); env.connect(master);
+      osc.start(t); osc.stop(t + chordDur);
     });
-
     const melodyFreqs = [523.25, 587.33, 493.88, 523.25];
     const osc = ctx.createOscillator();
     const env = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.value = melodyFreqs[ci];
+    osc.type = 'triangle'; osc.frequency.value = melodyFreqs[ci];
     const t = now + ci * chordDur + 1;
     env.gain.setValueAtTime(0, t);
     env.gain.linearRampToValueAtTime(0.15, t + 0.2);
     env.gain.exponentialRampToValueAtTime(0.01, t + 2);
-    osc.connect(env);
-    env.connect(master);
-    osc.start(t);
-    osc.stop(t + 2.5);
+    osc.connect(env); env.connect(master);
+    osc.start(t); osc.stop(t + 2.5);
   });
 
   const totalDur = chords.length * chordDur;
@@ -2137,15 +1294,10 @@ function stopBGM() {
   updateAudioButtons();
 }
 
-function toggleAudio() {
-  if (isPlaying) stopBGM();
-  else startBGM();
-}
+function toggleAudio() { if (isPlaying) stopBGM(); else startBGM(); }
 
 function updateAudioButtons() {
-  document.querySelectorAll('.audio-toggle').forEach(btn => {
-    btn.classList.toggle('playing', isPlaying);
-  });
+  document.querySelectorAll('.audio-toggle').forEach(btn => btn.classList.toggle('playing', isPlaying));
 }
 
 /* ── SFX ── */
@@ -2157,18 +1309,14 @@ function playStartSFX() {
     const gain = ctx.createGain();
     gain.gain.value = 0.12;
     gain.connect(ctx.destination);
-
     [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const env = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = freq;
+      osc.type = 'square'; osc.frequency.value = freq;
       env.gain.setValueAtTime(0.4, now + i * 0.08);
       env.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.25);
-      osc.connect(env);
-      env.connect(gain);
-      osc.start(now + i * 0.08);
-      osc.stop(now + i * 0.08 + 0.3);
+      osc.connect(env); env.connect(gain);
+      osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.3);
     });
   } catch (e) {}
 }
@@ -2216,73 +1364,78 @@ function playStartSFX() {
   draw();
 })();
 
-/* ── INIT ── */
-const __navigateTo = navigateTo;
-navigateTo = function(pageId, options = {}) {
-  const origOnShow = options.onShow;
-  options.onShow = function() {
-    if (origOnShow) origOnShow();
-    if (pageId === 'rankings') renderRanking('popular');
-    if (pageId === 'mypage') renderMyPage();
-    if (['terms', 'privacy', 'tokushoho'].includes(pageId)) renderLegalPage(pageId);
-  };
-  __navigateTo(pageId, options);
-};
+/* ── DB: LOAD QUESTS ── */
+async function loadQuests() {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase
+      .from('quests')
+      .select('*, quest_items(*)')
+      .eq('is_published', true)
+      .order('id');
+    if (error || !data?.length) return;
+    quests = data.map(q => ({
+      id: q.id,
+      title: q.title,
+      tagline: q.tagline,
+      rank: q.rank,
+      difficulty: q.difficulty,
+      price: q.price,
+      category: q.category || 'beginner',
+      format: q.format || 'home',
+      genre: q.genre || '',
+      subGenre: q.sub_genre || '',
+      isNew: q.is_new || false,
+      image: q.image_url || `images/quest-${q.id}-alchemy.webp`,
+      estimatedTime: q.estimated_time || '—',
+      players: q.players || '—',
+      region: q.region || '自宅完結',
+      items: (q.quest_items || []).sort((a, b) => a.sort_order - b.sort_order).map(it => ({ icon: it.icon || '◆', name: it.name })),
+      prologue: q.prologue || '',
+      cautions: q.cautions || [],
+      purposes: q.purposes || [],
+      reviews: [],
+      reviewAvg: parseFloat(q.review_avg) || 0,
+      reviewCount: q.review_count || 0,
+      salesCount: q.sales_count || 0,
+      shopifyVariantId: q.shopify_variant_id,
+    }));
+  } catch (e) { /* use fallback data */ }
+}
 
-/* ── AUTH STATE LISTENER ── */
-(async function initApp() {
-  // Init GA4
-  if (GA4_ID && GA4_ID !== 'G-XXXXXXXXXX') {
-    const gaScript = document.createElement('script');
-    gaScript.async = true;
-    gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`;
-    document.head.appendChild(gaScript);
-    gtag('config', GA4_ID);
+/* ── INIT ── */
+(async function init() {
+  // Try loading quests from DB
+  await loadQuests();
+
+  // Check existing session
+  if (supabase) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      userState.loggedIn = true;
+      userState.role = 'adventurer';
+      await loadUserProfile(session.user.id);
+      updateHeaderUser();
+      navigateTo('quest-board', {
+        transition: false,
+        onShow: () => { renderQuestCards(quests); updateHeaderUser(); }
+      });
+      startBGM();
+    }
   }
 
   // Init Shopify
   initShopify();
 
-  const sb = getSupabase();
-  if (!sb) return;
-
-  let initialNavDone = false;
-
-  // Listen for auth state changes (handles INITIAL_SESSION, SIGNED_IN, SIGNED_OUT)
-  sb.auth.onAuthStateChange(async (event, session) => {
-    if (session && session.user) {
-      // Prevent double-navigation (INITIAL_SESSION + getSession race)
-      if (initialNavDone) {
-        updateHeaderUser();
-        return;
-      }
-      initialNavDone = true;
-
-      userState.loggedIn = true;
-      userState.userId = session.user.id;
-      userState.role = 'adventurer';
-
-      await loadUserProfile(session.user.id);
-      await loadQuestsFromDB();
-
-      if (currentPage === 'opening') {
-        playStartSFX();
-        setTimeout(() => startBGM(), 300);
-        navigateTo('quest-board', {
-          transitionText: event === 'INITIAL_SESSION' ? 'セッションを復元しています...' : 'ギルド掲示板を開いています...',
-          delay: event === 'INITIAL_SESSION' ? 800 : 1200,
-          onShow: () => {
-            renderQuestCards(quests);
-            updateHeaderUser();
-          }
-        });
-      } else {
-        updateHeaderUser();
-      }
-    } else if (event === 'SIGNED_OUT') {
-      initialNavDone = false;
-      userState.loggedIn = false;
-      userState.userId = null;
-    }
-  });
+  // GA4 dynamic init
+  if (RQ_CONFIG.GA4_ID && RQ_CONFIG.GA4_ID !== 'G-XXXXXXXXXX') {
+    const s = document.createElement('script');
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${RQ_CONFIG.GA4_ID}`;
+    s.async = true;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function() { dataLayer.push(arguments); };
+    gtag('js', new Date());
+    gtag('config', RQ_CONFIG.GA4_ID);
+  }
 })();
