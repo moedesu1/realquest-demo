@@ -112,7 +112,7 @@ input, select { font-family: inherit; }
 }
 .opening-bg {
   position: fixed; inset: -5%; width: 110%; height: 110%;
-  background: url('../images/bg-opening-new.webp') center/cover no-repeat;
+  background: url('../images/bg-opening-hero.png') center/cover no-repeat;
   z-index: 0; opacity: 0;
   animation: bgFadeIn 3s ease forwards, kenBurns 30s ease-in-out 3s infinite alternate;
 }
